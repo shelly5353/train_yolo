@@ -18,10 +18,24 @@ train_yolo/
 ├── CLAUDE.md                    # This file - project documentation and development notes
 ├── README.md                    # User-facing project documentation
 ├── requirements.txt             # Python dependencies
-├── label_tool.py               # Interactive YOLO labeling tool with GUI
+├── .gitignore                   # Git ignore rules
 ├── best.pt                     # Trained YOLO model weights (22.5MB)
 ├── data/                       # Original training images (312 files)
 ├── labeld_data/                # Labeled output directory
+├── label_tool.py               # Original interactive YOLO labeling tool
+├── enhanced_label_tool.py      # AI-assisted labeling tool with model integration
+├── simple_edit_tool.py         # Simple editor for pre-generated labels
+├── batch_detect.py             # Batch processing script for automated labeling
+├── annotation_tool/            # Modern web-based annotation interface
+│   ├── backend/                # Flask API server
+│   │   ├── app.py             # Main Flask application
+│   │   └── requirements.txt   # Backend Python dependencies
+│   ├── frontend/              # React web application
+│   │   ├── src/               # React source code
+│   │   ├── package.json       # Frontend dependencies
+│   │   └── tailwind.config.js # Styling configuration
+│   ├── start.sh               # Auto-startup script
+│   └── README.md              # Web tool documentation
 └── .claude/                    # Claude Code configuration
 ```
 
@@ -51,32 +65,75 @@ train_yolo/
 
 ## DEVELOPMENT NOTES
 
-### Recent Changes:
-- Initial project setup completed
-- YOLO labeling tool fully functional
-- Model training completed with best.pt weights
-- 312 training images available for labeling/re-labeling
+### Recent Changes (Latest Update):
+- **Enhanced YOLO Labeling Tool**: Added AI-assisted labeling with auto-detection
+- **Simple Edit Tool**: Quick editor for pre-generated labels
+- **Batch Detection Script**: Automated processing of entire datasets
+- **Modern Web Annotation Tool**: Full React/Flask web application with trackpad support
+- **Complete Tool Suite**: Four different tools for various labeling workflows
 
-### Technical Implementation:
-- GUI built with tkinter for cross-platform compatibility
-- Image scaling and coordinate conversion between display and YOLO formats
-- Mouse event handling for intuitive bounding box creation
-- Right-click deletion for easy label correction
-- Automatic saving to labeld_data/ directory
+### Tool Suite Overview:
+
+#### 1. **Original Label Tool** (`label_tool.py`)
+- Basic manual labeling with tkinter GUI
+- Mouse-based bounding box drawing
+- Class selection and keyboard shortcuts
+- Original tool for ground-up labeling
+
+#### 2. **Enhanced Label Tool** (`enhanced_label_tool.py`)
+- **AI-Assisted Labeling**: Runs trained model first, then allows manual editing
+- **Confidence Threshold Control**: Adjustable detection sensitivity
+- **Full-screen Canvas**: Original image size with scrollbars
+- **Smart Workflow**: Model detection + manual correction
+- **Keyboard Shortcuts**: Press 'R' to run model detection
+
+#### 3. **Simple Edit Tool** (`simple_edit_tool.py`)
+- **Pre-label Editor**: Works on already labeled data
+- **Fast Review**: Quickly review and correct batch-generated labels
+- **Statistics Tracking**: Shows processed count and label statistics
+- **Minimal Interface**: Focused on editing, not initial labeling
+
+#### 4. **Batch Detection Script** (`batch_detect.py`)
+- **Automated Processing**: Runs model on all images at once
+- **Progress Tracking**: tqdm progress bars and statistics
+- **Confidence Control**: Command-line confidence threshold
+- **Mass Production**: Processes hundreds of images quickly
+- Usage: `python batch_detect.py --confidence 0.3`
+
+#### 5. **Modern Web Annotation Tool** (`annotation_tool/`)
+- **React + Flask Architecture**: Modern web-based interface
+- **Trackpad Gestures**: Native macOS pinch-to-zoom and pan
+- **High Performance**: 60fps smooth interactions
+- **Professional UI**: Color-coded classes, real-time statistics
+- **Keyboard Shortcuts**: Extensive hotkey support (N, V, H, 1-4, Cmd+S)
+- **Auto-startup**: Single `./start.sh` command launches everything
+
+### Recommended Workflow:
+1. **Batch Detection**: `python batch_detect.py` for initial AI labeling
+2. **Web Tool Review**: `cd annotation_tool && ./start.sh` for professional editing
+3. **Simple Editor**: `python simple_edit_tool.py` for quick corrections
+4. **Enhanced Tool**: `python enhanced_label_tool.py` for AI-assisted refinement
+
+### Technical Improvements:
+- **Canvas Rendering**: Full-resolution display with scrollable interface
+- **Coordinate Precision**: Pixel-perfect bounding box accuracy
+- **Model Integration**: Direct YOLO model inference in labeling tools
+- **Batch Processing**: Efficient handling of large datasets
+- **Web Architecture**: Scalable React/Flask separation
+- **Gesture Support**: Native trackpad integration for macOS
+- **Performance**: Optimized for large images and many annotations
 
 ### Current Status:
-- Labeling tool is production-ready
-- Model weights available (best.pt)
-- Ready for further training iterations or deployment
+- **Production Ready**: Complete suite of professional labeling tools
+- **AI Integration**: Model inference integrated into workflow
+- **Web Interface**: Modern browser-based annotation tool
+- **Batch Processing**: Automated initial labeling capability
+- **Cross-Platform**: Tools work on macOS, Linux, Windows
 
-### Usage Instructions:
-1. Run `python label_tool.py` to start the GUI
-2. Use mouse to draw bounding boxes around objects
-3. Select appropriate class from dropdown
-4. Use keyboard shortcuts for efficient navigation
-5. Labels automatically saved in YOLO format
-
-### Next Steps:
-- Documentation creation and git repository setup
-- Potential model retraining with additional labeled data
-- Integration with training pipeline
+### Dependencies Added:
+- `ultralytics` for YOLO model inference
+- `torch` for model loading and processing
+- `tqdm` for progress bars in batch processing
+- React/TypeScript for web frontend
+- Flask for API backend
+- Tailwind CSS for modern styling
