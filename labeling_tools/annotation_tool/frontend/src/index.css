@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: #f8fafc;
+    overflow: hidden;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer components {
+  .annotation-canvas {
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    touch-action: none;
+  }
+
+  .annotation-canvas.panning {
+    cursor: grab;
+  }
+
+  .annotation-canvas.panning:active {
+    cursor: grabbing;
+  }
+
+  .annotation-box {
+    pointer-events: none;
+    fill: none;
+    stroke-width: 2;
+    opacity: 0.8;
+  }
+
+  .annotation-box.selected {
+    stroke-width: 3;
+    opacity: 1;
+  }
+
+  .annotation-box.straight {
+    stroke: #ef4444;
+  }
+
+  .annotation-box.l-shape {
+    stroke: #3b82f6;
+  }
+
+  .annotation-box.u-shape {
+    stroke: #10b981;
+  }
+
+  .annotation-box.complex {
+    stroke: #f59e0b;
+  }
+
+  .annotation-label {
+    font-size: 12px;
+    font-weight: 600;
+    fill: white;
+    text-anchor: start;
+    dominant-baseline: hanging;
+    pointer-events: none;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  }
+
+  .hotkey {
+    @apply inline-block px-1.5 py-0.5 text-xs font-mono bg-gray-200 text-gray-700 rounded border;
+  }
+
+  .glass-panel {
+    @apply bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg;
+  }
+
+  .sidebar {
+    @apply w-80 bg-white border-r border-gray-200 flex flex-col h-screen overflow-y-auto;
+  }
+
+  .sidebar-section {
+    @apply p-4 border-b border-gray-100;
+  }
+
+  .image-grid-item {
+    @apply relative aspect-video bg-gray-100 rounded-lg overflow-hidden cursor-pointer
+           hover:ring-2 hover:ring-blue-500 transition-all duration-200;
+  }
+
+  .image-grid-item.selected {
+    @apply ring-2 ring-blue-500;
+  }
+
+  .image-grid-item.labeled::after {
+    content: '';
+    @apply absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full;
+  }
+}
