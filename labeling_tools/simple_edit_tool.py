@@ -2,6 +2,7 @@
 """
 Simple YOLO Label Editor
 Loads pre-generated labels and allows editing
+Expects dataset structure: dataset_folder/images/ and dataset_folder/labels/
 """
 
 import os
@@ -17,27 +18,46 @@ import argparse
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from utilities.config_manager import PathConfig, prepare_directory_for_labeling
+from utilities.dataset_utils import (
+    select_dataset_directory,
+    validate_dataset_structure,
+    prepare_labels_for_dataset,
+    show_structure_error_dialog
+)
 
 class SimpleYOLOEditor:
-    def __init__(self, output_dir=None):
-        # Use config manager if no directory specified
-        if output_dir is None:
-            config = PathConfig()
-            try:
-                output_dir = config.get_or_select_directory(
-                    key='last_labels_dir',
-                    title='Select Directory with Images to Label'
-                )
-            except ValueError:
-                print("No directory selected. Exiting.")
-                return
+    def __init__(self, dataset_dir=None):
+        """
+        Initialize the Simple YOLO Editor
 
-        # Prepare directory: auto-detect labels if missing
+        Args:
+            dataset_dir: Path to dataset folder (must contain images/ and labels/ subfolders)
+                        If None, shows directory picker dialog
+        """
+        # ALWAYS show directory picker if not specified
+        if dataset_dir is None:
+            dataset_dir = select_dataset_directory()
+
+        if not dataset_dir:
+            print("No directory selected. Exiting.")
+            return
+
+        # Validate dataset structure (must have images/ and labels/ subfolders)
         try:
-            self.output_dir = prepare_directory_for_labeling(output_dir, verbose=True)
+            self.images_dir, self.labels_dir = validate_dataset_structure(dataset_dir)
+            print(f"✅ Valid dataset structure")
+            print(f"   Images: {self.images_dir}")
+            print(f"   Labels: {self.labels_dir}")
+        except ValueError as e:
+            print(f"\n{e}")
+            show_structure_error_dialog(str(e))
+            return
+
+        # Auto-generate labels if labels/ folder is empty or has missing labels
+        try:
+            prepare_labels_for_dataset(self.images_dir, self.labels_dir, verbose=True)
         except (FileNotFoundError, ImportError) as e:
-            print(f"Error preparing directory: {e}")
+            print(f"Error generating labels: {e}")
             return
 
         # YOLO classes from your model
@@ -54,13 +74,12 @@ class SimpleYOLOEditor:
         self.start_x = self.start_y = 0
         self.current_class = 0
 
-        # Load all images from output directory
-        self.image_files = sorted(list(self.output_dir.glob("*.png")))
-        print(f"Found {len(self.image_files)} images to edit")
+        # Load all images from images/ directory
+        self.image_files = sorted(list(self.images_dir.glob("*.png")))
+        print(f"Found {len(self.image_files)} images to edit\n")
 
         if not self.image_files:
-            print("No images found in labeld_data/ directory!")
-            print("Run batch_detect.py first to generate initial labels.")
+            print("No PNG images found in images/ directory!")
             return
 
         self.setup_gui()
@@ -186,13 +205,13 @@ class SimpleYOLOEditor:
         self.draw_all_boxes()
 
         # Update stats
-        total_processed = len([f for f in self.output_dir.glob("*.txt")])
+        total_processed = len([f for f in self.labels_dir.glob("*.txt")])
         self.stats_label.config(text=f"Labels: {len(self.current_labels)} | Processed: {self.current_image_idx + 1}/{total_processed}")
 
     def load_existing_labels(self):
-        """Load existing YOLO format labels"""
+        """Load existing YOLO format labels from labels/ folder"""
         image_path = self.image_files[self.current_image_idx]
-        label_file = self.output_dir / f"{image_path.stem}.txt"
+        label_file = self.labels_dir / f"{image_path.stem}.txt"
 
         self.current_labels = []
         if label_file.exists():
@@ -322,9 +341,9 @@ class SimpleYOLOEditor:
         self.status_var.set("All labels cleared")
 
     def save_labels(self):
-        """Save current labels in YOLO format"""
+        """Save current labels in YOLO format to labels/ folder"""
         image_path = self.image_files[self.current_image_idx]
-        label_file = self.output_dir / f"{image_path.stem}.txt"
+        label_file = self.labels_dir / f"{image_path.stem}.txt"
 
         with open(label_file, 'w') as f:
             for label in self.current_labels:
@@ -354,10 +373,17 @@ class SimpleYOLOEditor:
         self.root.mainloop()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Simple YOLO Label Editor')
-    parser.add_argument('--dir', type=str, help='Directory with labeled images (optional, will prompt if not provided)')
+    parser = argparse.ArgumentParser(
+        description='Simple YOLO Label Editor',
+        epilog='Dataset must have structure: dataset_folder/images/ and dataset_folder/labels/'
+    )
+    parser.add_argument(
+        '--dir',
+        type=str,
+        help='Path to dataset folder (must contain images/ and labels/ subfolders). If not provided, dialog will appear.'
+    )
     args = parser.parse_args()
 
-    tool = SimpleYOLOEditor(output_dir=args.dir)
+    tool = SimpleYOLOEditor(dataset_dir=args.dir)
     if hasattr(tool, 'image_files') and tool.image_files:
         tool.run()
