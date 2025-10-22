@@ -16,7 +16,8 @@ import numpy as np
 from PIL import Image
 
 # Add project root to path for imports
-project_root = Path(__file__).parent.parent.parent
+# backend/app.py -> backend -> annotation_tool -> labeling_tools -> project_root
+project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from utilities.config_manager import PathConfig
