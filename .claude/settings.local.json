@@ -34,7 +34,8 @@
       "Bash(mv:*)",
       "Bash(tree:*)",
       "Bash(git stash:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(zip:*)"
     ],
     "deny": [],
     "ask": []

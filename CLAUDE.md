@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **YOLO Object Detection Training Pipeline** - Complete end-to-end system for labeling images, training models, and detecting 4 shape classes: straight, L-shape, U-shape, and complex.
 
-**Active Model:** `models/best_v2_updated_classes.pt` (22.5MB, YOLOv8)
+**Active Model:** `models/best.pt` (21MB, YOLOv8, Sept 28 2025)
 
 ## Architecture Overview
 
@@ -29,12 +29,12 @@ unlabeled images → labeling tools → labeled dataset → utilities → traini
 
 ### Model Integration Pattern
 
-All labeling tools can load `models/best_v2_updated_classes.pt` for AI-assisted annotation. The model is a standard Ultralytics YOLOv8 checkpoint that includes:
+All labeling tools can load `models/best.pt` for AI-assisted annotation. The model is a standard Ultralytics YOLOv8 checkpoint that includes:
 - Model architecture and weights
 - Class names metadata (4 classes)
 - Training configuration
 
-**Critical:** When modifying tools, always check if they reference model paths. Default is `../models/best_v2_updated_classes.pt` from tool directories.
+**Critical:** When modifying tools, always check if they reference model paths. Default is `best.pt` or `../models/best.pt` from tool directories.
 
 ### Web Annotation Tool Architecture
 
@@ -165,17 +165,16 @@ Each major folder has its own `CLAUDE.md` with specific details:
 
 **Read these folder-level docs** before modifying code in those folders.
 
-## Model Version History
+## Model Management
 
-- `best_v1_original_classes.pt` - Deprecated, old class names
-- `best_v2_updated_classes.pt` - **CURRENT**, updated class naming
-- `best_v2_backup1.pt`, `best_v2_backup2.pt` - Safety backups
+**Current Model:** `models/best.pt` (Sept 28, 2025)
 
 When updating model:
-1. Backup current model with date: `best_v2_updated_classes_YYYY-MM-DD.pt`
+1. Backup current model with date: `best_YYYY-MM-DD.pt`
 2. Test new model thoroughly
 3. Update `models/CLAUDE.md` with changes
 4. Only replace if performance improves
+5. Keep single active model named `best.pt` for simplicity
 
 ## Key Technical Details
 
@@ -206,7 +205,7 @@ All coordinates normalized 0.0-1.0 relative to image dimensions.
 
 ## Troubleshooting Quick Reference
 
-**Model not found:** Check path references to `models/best_v2_updated_classes.pt`
+**Model not found:** Check path references to `models/best.pt`
 
 **Import errors:** Ensure working directory matches script expectations (most scripts assume run from their folder)
 

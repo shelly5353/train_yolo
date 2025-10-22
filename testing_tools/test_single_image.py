@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 def test_single_image(image_path):
-    model_path = "/Users/shellysmac/Downloads/best.pt"
+    model_path = "../models/best.pt"
     
     print("🤖 Loading improved YOLO model...")
     model = YOLO(model_path)
