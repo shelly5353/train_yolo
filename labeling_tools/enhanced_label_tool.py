@@ -5,6 +5,7 @@ Runs your trained model first to detect objects, then allows editing
 """
 
 import os
+import sys
 import cv2
 import json
 import glob
@@ -14,12 +15,42 @@ from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import torch
 from ultralytics import YOLO
+import argparse
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from utilities.config_manager import PathConfig, prepare_directory_for_labeling
 
 class EnhancedYOLOLabelTool:
-    def __init__(self, data_dir="data", output_dir="labeld_data", model_path="best.pt"):
-        self.data_dir = Path(data_dir)
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+    def __init__(self, data_dir=None, model_path=None):
+        # Use config manager if no directory specified
+        if data_dir is None:
+            config = PathConfig()
+            try:
+                data_dir = config.get_or_select_directory(
+                    key='last_data_dir',
+                    title='Select Directory with Images to Label'
+                )
+            except ValueError:
+                print("No directory selected. Exiting.")
+                return
+
+        # Get model path from config if not specified
+        if model_path is None:
+            config = PathConfig()
+            model_path = config.get_model_path()
+
+        # Prepare directory: auto-detect labels if missing
+        try:
+            self.data_dir = prepare_directory_for_labeling(data_dir, model_path=model_path, verbose=True)
+        except (FileNotFoundError, ImportError) as e:
+            print(f"Error preparing directory: {e}")
+            return
+
+        # Use same directory for input and output
+        self.output_dir = self.data_dir
 
         # Load your trained model
         print(f"Loading YOLO model from {model_path}...")
@@ -391,16 +422,11 @@ class EnhancedYOLOLabelTool:
         self.root.mainloop()
 
 if __name__ == "__main__":
-    import sys
+    parser = argparse.ArgumentParser(description='Enhanced YOLO Image Labeling Tool')
+    parser.add_argument('--dir', type=str, help='Directory with images (optional, will prompt if not provided)')
+    parser.add_argument('--model', type=str, help='Path to YOLO model (optional, uses config default)')
+    args = parser.parse_args()
 
-    # Check if directories and model exist
-    if not os.path.exists("data"):
-        print("Error: 'data' directory not found!")
-        sys.exit(1)
-
-    if not os.path.exists("best.pt"):
-        print("Error: 'best.pt' model file not found!")
-        sys.exit(1)
-
-    tool = EnhancedYOLOLabelTool()
-    tool.run()
+    tool = EnhancedYOLOLabelTool(data_dir=args.dir, model_path=args.model)
+    if hasattr(tool, 'image_files') and tool.image_files:
+        tool.run()

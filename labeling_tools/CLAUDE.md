@@ -3,10 +3,39 @@
 ## Purpose
 Interactive applications for creating, editing, and managing YOLO annotations for training data.
 
+## NEW: Directory Selection & Auto-Labeling
+
+**All tools now support flexible directory selection and automatic YOLO label generation!**
+
+### How It Works:
+1. **Run any tool** without specifying a directory
+2. **GUI dialog appears** to select folder with images
+3. **Tool checks for labels** - if missing, automatically runs YOLO detection
+4. **Start editing** immediately with AI-generated initial labels
+
+### Usage Options:
+
+**Option 1: GUI Selection (Default)**
+```bash
+python label_tool.py
+# Dialog appears -> Select folder -> Auto-detects if needed -> Opens editor
+```
+
+**Option 2: Command Line**
+```bash
+python label_tool.py --dir /path/to/your/images
+# Skips dialog, uses specified path directly
+```
+
+**Option 3: Remembered Paths**
+- Tools remember last-used directory
+- On next run, asks if you want to use it again
+- Configuration saved in `config.json` (gitignored)
+
 ## Available Tools
 
-### 1. label_tool.py - Original Manual Labeler
-**Best For:** Ground-up manual labeling without AI assistance
+### 1. label_tool.py - Manual Labeler
+**Best For:** Full-featured labeling with optional AI assistance
 
 **Features:**
 - Tkinter-based GUI
@@ -16,79 +45,85 @@ Interactive applications for creating, editing, and managing YOLO annotations fo
 - Delete selected boxes (Delete key)
 - Real-time label visualization with color coding
 - Saves in YOLO format (normalized coordinates)
+- **AUTO: Generates labels if missing**
 
 **Usage:**
 ```bash
-cd labeling_tools
-python label_tool.py
+python labeling_tools/label_tool.py
+# Or specify directory:
+python labeling_tools/label_tool.py --dir /path/to/images
 ```
 
 **When to Use:**
-- Starting from completely unlabeled images
-- Need full manual control over every annotation
-- Small batch labeling (< 50 images)
-- Learning the annotation process
+- Any labeling task - works with or without existing labels
+- Need full manual control over annotations
+- Want AI assistance for initial labels
+- Small to medium batch labeling
 
 ---
 
 ### 2. enhanced_label_tool.py - AI-Assisted Labeler
-**Best For:** Semi-automated labeling with manual correction
+**Best For:** Semi-automated labeling with on-demand AI detection
 
 **Features:**
 - Full-screen canvas with scrollbars
-- AI model integration (auto-detection)
+- AI model integration (on-demand via 'R' key)
 - Adjustable confidence threshold
-- Press 'R' to run model detection
+- Press 'R' to re-run model detection
 - Manual editing of AI-generated labels
 - Smart workflow: AI suggests, human corrects
+- **AUTO: Generates initial labels if missing**
 
 **Usage:**
 ```bash
-cd labeling_tools
-python enhanced_label_tool.py
+python labeling_tools/enhanced_label_tool.py
+# Or specify directory and model:
+python labeling_tools/enhanced_label_tool.py --dir /path/to/images --model models/best.pt
 ```
 
 **When to Use:**
-- Model already trained and somewhat accurate
+- Want on-demand AI re-detection (press 'R')
 - Large batch labeling (100+ images)
-- Want to speed up annotation process
-- Correcting or refining existing labels
+- Iteratively refining labels
+- Correcting or improving existing labels
 
 **Workflow:**
-1. Load image
-2. Press 'R' to run AI detection
-3. Review AI-generated boxes
+1. Tool auto-generates labels if missing
+2. Review boxes on current image
+3. Press 'R' to re-run AI if needed
 4. Add/delete/modify as needed
 5. Save and move to next image
 
 ---
 
 ### 3. simple_edit_tool.py - Quick Label Editor
-**Best For:** Reviewing and fixing pre-labeled data
+**Best For:** Fast review and editing of labels
 
 **Features:**
 - Minimal interface focused on editing
-- Works on already-labeled images
+- Works with or without existing labels
 - Statistics tracking (processed count)
 - Fast navigation
 - Quick corrections
+- **AUTO: Generates labels if missing**
 
 **Usage:**
 ```bash
-cd labeling_tools
-python simple_edit_tool.py
+python labeling_tools/simple_edit_tool.py
+# Or specify directory:
+python labeling_tools/simple_edit_tool.py --dir /path/to/images
 ```
 
 **When to Use:**
-- Data already has labels (from batch_detect.py)
 - Quick review and correction needed
 - Quality control pass on dataset
 - Final cleanup before training
+- Simple, no-frills editing interface
 
 ---
 
 ### 4. batch_detect.py - Automated Batch Processor
-**Best For:** Mass auto-labeling of large datasets
+**Best For:** Standalone batch labeling without opening GUI
 
 **Features:**
 - Processes entire folders at once
@@ -97,29 +132,29 @@ python simple_edit_tool.py
 - Configurable confidence threshold
 - Statistics summary
 - Fast processing (seconds per image)
+- **Supports directory selection dialog**
 
 **Usage:**
 ```bash
-cd labeling_tools
-python batch_detect.py --confidence 0.3
+python labeling_tools/batch_detect.py
+# Opens dialog to select directory
+# Or specify directly:
+python labeling_tools/batch_detect.py --dir /path/to/images --confidence 0.3
 ```
 
 **Arguments:**
-- `--data_dir`: Input directory (default: ../data/unlabeled)
-- `--output_dir`: Output directory (default: ../data/labeled)
-- `--model`: Model path (default: ../models/best_v2_updated_classes.pt)
+- `--dir`: Input directory (optional, will prompt if not provided)
+- `--output_dir`: Output directory (optional, uses input dir if not specified)
+- `--model`: Model path (optional, uses config default)
 - `--confidence`: Confidence threshold 0-1 (default: 0.25)
 
 **When to Use:**
 - Hundreds of images to label
-- Model is reasonably accurate (>70%)
-- Initial labeling pass before manual review
+- Don't need GUI for review right away
 - Automated pipeline processing
+- Batch job / scripting
 
-**Workflow:**
-1. Run batch_detect.py on unlabeled images
-2. Use simple_edit_tool.py to review results
-3. Use enhanced_label_tool.py for corrections
+**Note:** Other tools now auto-generate labels, so batch_detect.py is optional unless you prefer separate detect/edit steps.
 
 ---
 

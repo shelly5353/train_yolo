@@ -5,17 +5,34 @@ Runs your trained model on all images and saves initial labels
 """
 
 import os
+import sys
 import cv2
 from pathlib import Path
 from ultralytics import YOLO
 from tqdm import tqdm
 
-def batch_detect(data_dir="data", output_dir="labeld_data", model_path="best.pt", confidence=0.25):
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from utilities.config_manager import PathConfig
+
+def batch_detect(data_dir, output_dir=None, model_path=None, confidence=0.25):
     """Run model detection on all images"""
 
     data_dir = Path(data_dir)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(exist_ok=True)
+
+    # Use same directory for output if not specified
+    if output_dir is None:
+        output_dir = data_dir
+    else:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(exist_ok=True)
+
+    # Get model path from config if not specified
+    if model_path is None:
+        config = PathConfig()
+        model_path = config.get_model_path()
 
     # Load model
     print(f"Loading YOLO model from {model_path}...")
@@ -42,9 +59,10 @@ def batch_detect(data_dir="data", output_dir="labeld_data", model_path="best.pt"
             # Run detection
             results = model(image, conf=confidence, verbose=False)
 
-            # Copy image to output directory
-            output_image_path = output_dir / image_path.name
-            cv2.imwrite(str(output_image_path), image)
+            # Copy image to output directory only if different
+            if output_dir != data_dir:
+                output_image_path = output_dir / image_path.name
+                cv2.imwrite(str(output_image_path), image)
 
             # Process detections and save labels
             labels = []
@@ -96,20 +114,30 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Batch YOLO detection on all images")
+    parser.add_argument("--dir", type=str, help="Input image directory (optional, will prompt if not provided)")
+    parser.add_argument("--output_dir", type=str, help="Output directory (optional, uses input dir if not specified)")
+    parser.add_argument("--model", type=str, help="Model file path (optional, uses config default)")
     parser.add_argument("--confidence", "-c", type=float, default=0.25, help="Detection confidence threshold")
-    parser.add_argument("--data_dir", default="data", help="Input image directory")
-    parser.add_argument("--output_dir", default="labeld_data", help="Output directory")
-    parser.add_argument("--model", default="best.pt", help="Model file path")
 
     args = parser.parse_args()
 
-    # Check requirements
-    if not os.path.exists(args.data_dir):
-        print(f"Error: Directory '{args.data_dir}' not found!")
+    # Get directory from user if not provided
+    if args.dir is None:
+        config = PathConfig()
+        try:
+            data_dir = config.get_or_select_directory(
+                key='last_data_dir',
+                title='Select Directory with Images for Batch Detection'
+            )
+        except ValueError:
+            print("No directory selected. Exiting.")
+            exit(1)
+    else:
+        data_dir = args.dir
+
+    # Check directory exists
+    if not os.path.exists(data_dir):
+        print(f"Error: Directory '{data_dir}' not found!")
         exit(1)
 
-    if not os.path.exists(args.model):
-        print(f"Error: Model file '{args.model}' not found!")
-        exit(1)
-
-    batch_detect(args.data_dir, args.output_dir, args.model, args.confidence)
+    batch_detect(data_dir, args.output_dir, args.model, args.confidence)

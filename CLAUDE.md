@@ -68,7 +68,7 @@ python labeling_tools/simple_edit_tool.py
 **Option 2: Command Line Arguments**
 ```bash
 # Specify directory directly
-python labeling_tools/simple_edit_tool.py --dir /path/to/labeled/images
+python labeling_tools/simple_edit_tool.py --dir /path/to/images
 ```
 
 **Option 3: Remembered Paths**
@@ -77,6 +77,32 @@ python labeling_tools/simple_edit_tool.py --dir /path/to/labeled/images
 # First time: prompts for selection
 # Next time: asks if you want to use the same directory
 ```
+
+### Automatic YOLO Label Generation
+
+**All labeling tools now automatically run YOLO detection when labels are missing:**
+
+1. **You select a directory** with PNG images
+2. **Tool checks for existing labels** (.txt files matching image names)
+3. **If labels are missing:** Automatically runs YOLO model (`best.pt`) to generate initial labels
+4. **If labels exist:** Loads them for editing
+
+**Example workflow:**
+```bash
+# Run any labeling tool
+python labeling_tools/label_tool.py
+
+# Select directory: /Users/you/new_images/
+# Tool detects: 50 images, 0 have labels
+# Auto-runs YOLO: Generates 50 label files
+# Opens tool: Ready to review and edit
+```
+
+**This means you can:**
+- Point any tool at a folder of unlabeled images
+- Get instant AI-assisted labeling
+- Skip the separate batch_detect.py step
+- Start editing immediately
 
 ### Configuration File
 
@@ -124,23 +150,42 @@ cd ../../..
 
 ### Labeling Workflows
 
-```bash
-# Quick batch labeling with AI model
-cd labeling_tools
-python batch_detect.py --confidence 0.3
+**All tools now support directory selection and auto-label generation!**
 
-# Review/edit labels with web interface
+```bash
+# Simple editor (best for quick reviews)
+python labeling_tools/simple_edit_tool.py
+# Opens dialog to select directory
+# Auto-generates labels if missing
+# Loads images + labels for editing
+
+# Full labeling tool
+python labeling_tools/label_tool.py
+# Opens dialog to select directory
+# Auto-generates labels if missing
+
+# Enhanced tool (shows AI confidence)
+python labeling_tools/enhanced_label_tool.py
+# Opens dialog to select directory
+# Auto-generates labels if missing
+
+# Batch detection (standalone, if you prefer separate steps)
+python labeling_tools/batch_detect.py --confidence 0.3
+# Opens dialog to select directory
+# Runs YOLO on all images
+
+# Web annotation tool (professional interface)
 cd labeling_tools/annotation_tool
 ./start.sh
 # Opens http://localhost:3000
+# Note: Web tool uses separate config, see annotation_tool/CLAUDE.md
+```
 
-# Manual labeling (no AI)
-cd labeling_tools
-python label_tool.py
-
-# AI-assisted labeling (hybrid)
-cd labeling_tools
-python enhanced_label_tool.py
+**Command-line usage (skip dialog):**
+```bash
+# Specify directory directly
+python labeling_tools/label_tool.py --dir /path/to/images
+python labeling_tools/simple_edit_tool.py --dir /path/to/images
 ```
 
 ### Dataset Preparation

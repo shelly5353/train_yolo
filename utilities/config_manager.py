@@ -358,6 +358,119 @@ def get_directory(title: str = "Select Directory",
         return config.select_directory(title)
 
 
+def prepare_directory_for_labeling(directory_path: str, model_path: Optional[str] = None,
+                                   confidence: float = 0.25, verbose: bool = True) -> Path:
+    """
+    Prepare a directory for labeling by checking if labels exist and running YOLO if needed.
+
+    Args:
+        directory_path: Path to directory containing images
+        model_path: Path to YOLO model (uses default from config if None)
+        confidence: Confidence threshold for YOLO detection
+        verbose: Print status messages
+
+    Returns:
+        Path object of the directory
+
+    Raises:
+        FileNotFoundError: If no PNG images found in directory
+        ImportError: If required packages (ultralytics, cv2) not available
+    """
+    from pathlib import Path
+    import cv2
+    from ultralytics import YOLO
+    from tqdm import tqdm
+
+    directory = Path(directory_path)
+
+    if not directory.exists():
+        raise FileNotFoundError(f"Directory not found: {directory}")
+
+    # Get all PNG images
+    image_files = sorted(list(directory.glob("*.png")))
+
+    if not image_files:
+        raise FileNotFoundError(f"No PNG images found in {directory}")
+
+    # Check how many images already have labels
+    labeled_count = sum(1 for img in image_files if (directory / f"{img.stem}.txt").exists())
+
+    if labeled_count == len(image_files):
+        if verbose:
+            print(f"✅ All {len(image_files)} images already have labels")
+        return directory
+
+    # Some images need labels - run YOLO
+    unlabeled_count = len(image_files) - labeled_count
+
+    if verbose:
+        print(f"⚠️  Found {unlabeled_count} unlabeled images (out of {len(image_files)} total)")
+        print(f"🔄 Running YOLO model to generate labels...")
+
+    # Get model path
+    if model_path is None:
+        config = PathConfig()
+        model_path = config.get_model_path()
+
+    if not Path(model_path).exists():
+        raise FileNotFoundError(f"YOLO model not found: {model_path}")
+
+    # Load YOLO model
+    model = YOLO(model_path)
+
+    # Process unlabeled images
+    processed = 0
+    for img_path in tqdm(image_files, desc="Detecting objects", disable=not verbose):
+        label_file = directory / f"{img_path.stem}.txt"
+
+        # Skip if label already exists
+        if label_file.exists():
+            continue
+
+        # Run detection
+        image = cv2.imread(str(img_path))
+        if image is None:
+            if verbose:
+                print(f"⚠️  Could not read image: {img_path.name}")
+            continue
+
+        results = model(image, conf=confidence, verbose=False)
+
+        # Save labels in YOLO format
+        labels = []
+        if results and len(results) > 0:
+            detections = results[0]
+            if detections.boxes is not None and len(detections.boxes) > 0:
+                boxes = detections.boxes
+                img_h, img_w = image.shape[:2]
+
+                for box in boxes:
+                    # Get box coordinates (xyxy format)
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    class_id = int(box.cls[0].cpu().numpy())
+
+                    # Convert to YOLO format (normalized xywh)
+                    x_center = ((x1 + x2) / 2) / img_w
+                    y_center = ((y1 + y2) / 2) / img_h
+                    width = (x2 - x1) / img_w
+                    height = (y2 - y1) / img_h
+
+                    labels.append(f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}")
+
+        # Write label file (even if empty)
+        with open(label_file, 'w') as f:
+            if labels:
+                f.write('\n'.join(labels) + '\n')
+
+        processed += 1
+
+    if verbose:
+        print(f"✅ Generated labels for {processed} images")
+        print(f"📁 Directory ready for labeling: {directory}")
+
+    return directory
+
+
 if __name__ == "__main__":
     # Test the configuration manager
     print("Testing PathConfig...")

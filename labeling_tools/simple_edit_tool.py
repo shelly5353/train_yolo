@@ -17,7 +17,7 @@ import argparse
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from utilities.config_manager import PathConfig
+from utilities.config_manager import PathConfig, prepare_directory_for_labeling
 
 class SimpleYOLOEditor:
     def __init__(self, output_dir=None):
@@ -27,13 +27,18 @@ class SimpleYOLOEditor:
             try:
                 output_dir = config.get_or_select_directory(
                     key='last_labels_dir',
-                    title='Select Directory with Labeled Images'
+                    title='Select Directory with Images to Label'
                 )
             except ValueError:
                 print("No directory selected. Exiting.")
                 return
 
-        self.output_dir = Path(output_dir)
+        # Prepare directory: auto-detect labels if missing
+        try:
+            self.output_dir = prepare_directory_for_labeling(output_dir, verbose=True)
+        except (FileNotFoundError, ImportError) as e:
+            print(f"Error preparing directory: {e}")
+            return
 
         # YOLO classes from your model
         self.classes = {

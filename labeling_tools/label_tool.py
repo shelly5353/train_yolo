@@ -5,6 +5,7 @@ Allows editing labels for YOLO object detection training data.
 """
 
 import os
+import sys
 import cv2
 import json
 import glob
@@ -12,12 +13,37 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
+import argparse
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from utilities.config_manager import PathConfig, prepare_directory_for_labeling
 
 class YOLOLabelTool:
-    def __init__(self, data_dir="data", output_dir="labeld_data"):
-        self.data_dir = Path(data_dir)
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+    def __init__(self, data_dir=None):
+        # Use config manager if no directory specified
+        if data_dir is None:
+            config = PathConfig()
+            try:
+                data_dir = config.get_or_select_directory(
+                    key='last_data_dir',
+                    title='Select Directory with Images to Label'
+                )
+            except ValueError:
+                print("No directory selected. Exiting.")
+                return
+
+        # Prepare directory: auto-detect labels if missing
+        try:
+            self.data_dir = prepare_directory_for_labeling(data_dir, verbose=True)
+        except (FileNotFoundError, ImportError) as e:
+            print(f"Error preparing directory: {e}")
+            return
+
+        # Use same directory for input and output
+        self.output_dir = self.data_dir
 
         # YOLO classes from your model
         self.classes = {
@@ -296,12 +322,10 @@ class YOLOLabelTool:
         self.root.mainloop()
 
 if __name__ == "__main__":
-    import sys
+    parser = argparse.ArgumentParser(description='YOLO Image Labeling Tool')
+    parser.add_argument('--dir', type=str, help='Directory with images (optional, will prompt if not provided)')
+    args = parser.parse_args()
 
-    # Check if directories exist
-    if not os.path.exists("data"):
-        print("Error: 'data' directory not found!")
-        sys.exit(1)
-
-    tool = YOLOLabelTool()
-    tool.run()
+    tool = YOLOLabelTool(data_dir=args.dir)
+    if hasattr(tool, 'image_files') and tool.image_files:
+        tool.run()
