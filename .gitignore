@@ -21,9 +21,10 @@ wheels/
 *.egg
 MANIFEST
 
-# PyTorch
-*.pt
-*.pth
+# Node
+node_modules/
+package-lock.json
+npm-debug.log*
 
 # IDE
 .vscode/
