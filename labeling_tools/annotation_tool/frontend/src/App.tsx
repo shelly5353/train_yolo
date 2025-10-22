@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ImageCanvas } from './components/ImageCanvas';
 import { Sidebar } from './components/Sidebar';
+import { DatasetSetup } from './components/DatasetSetup';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ApiService } from './services/api';
 import {
@@ -15,6 +16,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 
 function App() {
   // State
+  const [isDatasetConfigured, setIsDatasetConfigured] = useState(false);
   const [images, setImages] = useState<ImageInfo[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -28,40 +30,67 @@ function App() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load initial data
+  // Check dataset status on mount
   useEffect(() => {
-    const loadInitialData = async () => {
+    const checkDatasetStatus = async () => {
       try {
         setIsLoading(true);
-        setError(null);
 
         // Health check
         await ApiService.healthCheck();
 
-        // Load images and classes
-        const [imagesData, classesData, statsData] = await Promise.all([
-          ApiService.fetchImages(),
-          ApiService.fetchClasses(),
-          ApiService.fetchStats()
-        ]);
+        // Check if dataset is already configured
+        const status = await ApiService.getDatasetStatus();
+        setIsDatasetConfigured(status.configured);
 
-        setImages(imagesData.images);
-        setClasses(classesData);
-        setStats(statsData);
-
-        // Load annotations for first image
-        if (imagesData.images.length > 0) {
-          await loadAnnotations(imagesData.images[0].filename);
+        if (status.configured) {
+          // Dataset already configured, load data
+          await loadDatasetData();
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
+        console.error('Initial check failed:', err);
+        setIsDatasetConfigured(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadInitialData();
+    checkDatasetStatus();
   }, []);
+
+  // Load dataset data (images, classes, stats)
+  const loadDatasetData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Load images and classes
+      const [imagesData, classesData, statsData] = await Promise.all([
+        ApiService.fetchImages(),
+        ApiService.fetchClasses(),
+        ApiService.fetchStats()
+      ]);
+
+      setImages(imagesData.images);
+      setClasses(classesData);
+      setStats(statsData);
+
+      // Load annotations for first image
+      if (imagesData.images.length > 0) {
+        await loadAnnotations(imagesData.images[0].filename);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle dataset configuration complete
+  const handleDatasetConfigured = async () => {
+    setIsDatasetConfigured(true);
+    await loadDatasetData();
+  };
 
   // Load annotations for current image
   const loadAnnotations = async (filename: string) => {
@@ -227,16 +256,34 @@ function App() {
     'escape': () => setSelectedAnnotation(null)
   };
 
-  useKeyboardShortcuts(shortcuts, !isLoading && !error);
+  useKeyboardShortcuts(shortcuts, !isLoading && !error && isDatasetConfigured);
 
-  // Loading state
-  if (isLoading) {
+  // Initial loading state
+  if (isLoading && !isDatasetConfigured) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
           <div className="text-lg font-medium text-gray-900">Loading annotation tool...</div>
-          <div className="text-sm text-gray-500">Connecting to backend and loading images</div>
+          <div className="text-sm text-gray-500">Connecting to backend...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dataset not configured - show setup screen
+  if (!isDatasetConfigured) {
+    return <DatasetSetup onDatasetConfigured={handleDatasetConfigured} />;
+  }
+
+  // Loading dataset data
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <div className="text-lg font-medium text-gray-900">Loading dataset...</div>
+          <div className="text-sm text-gray-500">Loading images and annotations</div>
         </div>
       </div>
     );

@@ -34,11 +34,31 @@ A modern, fast, and responsive image annotation tool specifically designed for Y
 - **Node.js 16+** with npm
 - **macOS** (optimized for, but works on other platforms)
 
+### Dataset Structure (NEW - IMPORTANT)
+
+Your dataset folder **must** follow this structure:
+
+```
+your_dataset_folder/
+├── images/
+│   ├── image001.png
+│   ├── image002.png
+│   └── ...
+└── labels/
+    ├── image001.txt  (YOLO format)
+    ├── image002.txt
+    └── ...
+```
+
+**Note:** The `labels/` folder can be empty - the tool will offer to auto-generate labels using YOLO if needed.
+
 ### Installation & Launch
 
-1. **Clone or navigate to the annotation tool directory:**
+1. **First time setup (frontend dependencies):**
    ```bash
-   cd /path/to/train_yolo/annotation_tool
+   cd /path/to/train_yolo/annotation_tool/frontend
+   npm install
+   cd ..
    ```
 
 2. **Start the application:**
@@ -49,13 +69,20 @@ A modern, fast, and responsive image annotation tool specifically designed for Y
    The script will:
    - Set up Python virtual environment
    - Install all dependencies
-   - Start Flask backend on `http://localhost:5000`
+   - Start Flask backend on `http://localhost:5002`
    - Start React frontend on `http://localhost:3000`
    - Open your default browser
 
-3. **Access the tool:**
-   - **Web Interface**: http://localhost:3000
-   - **API Endpoints**: http://localhost:5000/api
+3. **Select your dataset:**
+   - A dataset selection screen will appear
+   - Click "Select Dataset Folder"
+   - Navigate to your dataset folder
+   - If labels are missing, choose to auto-generate or skip
+
+4. **Start annotating:**
+   - The tool validates your dataset structure
+   - Annotation interface loads automatically
+   - All edits save to the `labels/` folder
 
 ## 🎮 Usage Guide
 
@@ -118,27 +145,43 @@ annotation_tool/
 
 ### Backend Configuration
 Edit `backend/app.py` to modify:
-- **Data directories**: `DATA_DIR` and `LABELED_DATA_DIR` paths
+- **Model path**: `MODEL_PATH` (default: `models/best.pt`)
 - **Classes**: Update `CLASSES` dictionary for your dataset
-- **API port**: Default is 5000
+- **API port**: Default is 5002
 
 ### Frontend Configuration
 Edit `frontend/src/services/api.ts` to modify:
-- **API base URL**: Default is `http://localhost:5000/api`
+- **API base URL**: Default is `http://localhost:5002/api`
 - **Request timeouts and retry logic**
+
+### Dataset Selection
+- Dataset directories are selected via GUI on startup
+- No persistent configuration - selection resets when backend restarts
+- Backend validates `images/` and `labels/` subfolder structure
+- Auto-label generation uses YOLO model at `models/best.pt`
 
 ## 📊 Data Format
 
 ### Input Images
-- **Format**: PNG files in the `data/` directory
+- **Location**: PNG files in the `images/` subdirectory
 - **Naming**: Any filename (e.g., `image001.png`, `sample.png`)
 - **Size**: Optimized for large high-resolution images
+- **Read-only**: Images are never modified, only read for annotation
 
 ### Output Annotations
 - **Format**: YOLO format text files
-- **Location**: `labeld_data/` directory
+- **Location**: `labels/` subdirectory
 - **Filename**: Same as image with `.txt` extension
 - **Format**: `class_id x_center y_center width height` (normalized 0-1)
+
+Example dataset structure:
+```
+my_dataset/
+├── images/
+│   └── image001.png
+└── labels/
+    └── image001.txt
+```
 
 Example annotation file `image001.txt`:
 ```
@@ -162,9 +205,19 @@ npm start
 ```
 
 ### API Endpoints
+
+**Dataset Management (NEW):**
+- `GET /api/dataset/status` - Check if dataset is configured
+- `POST /api/dataset/select` - Select and validate dataset directory
+- `POST /api/dataset/generate-labels` - Auto-generate labels with YOLO
+
+**Image & Annotation Operations:**
 - `GET /api/images` - List all images with metadata
+- `GET /api/image/{filename}` - Serve image file (with caching)
 - `GET /api/annotations/{filename}` - Get annotations for image
 - `POST /api/annotations/{filename}` - Save annotations for image
+
+**Metadata:**
 - `GET /api/classes` - Get available classes
 - `GET /api/stats` - Get annotation statistics
 - `GET /api/health` - Health check
@@ -196,9 +249,17 @@ npm start
 - Clear cache: `npm start -- --reset-cache`
 
 **Images not loading:**
-- Verify images are in `../../data/` directory relative to backend
+- Verify dataset has `images/` subfolder with PNG files
+- Check that dataset was selected via the setup screen
 - Check file permissions and formats (PNG only)
 - Check browser console for API errors
+- Refresh the page and reselect dataset
+
+**Dataset selection not working:**
+- Ensure Flask backend has GUI permissions on macOS
+- Check terminal for Python/tkinter errors
+- Try clicking the button again
+- Restart the tool if needed
 
 **Trackpad gestures not working:**
 - Ensure using Safari or Chrome on macOS

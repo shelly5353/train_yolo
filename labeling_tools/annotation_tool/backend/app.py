@@ -20,15 +20,16 @@ from PIL import Image
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from utilities.config_manager import PathConfig
+from utilities.dataset_utils import select_dataset_directory, validate_dataset_structure, prepare_labels_for_dataset
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuration - Load from config manager
-config = PathConfig()
-DATA_DIR = Path(config.get_data_dir() or "/Users/shellysmac/Documents/Work/data/unlabeled")
-LABELED_DATA_DIR = Path(config.get_labels_dir() or "/Users/shellysmac/Documents/Work/data/labeled")
+# Global state for dataset directories (set by user via API)
+DATASET_DIR = None
+IMAGES_DIR = None
+LABELS_DIR = None
+
 CLASSES = {
     0: 'straight',
     1: 'L-shape',
@@ -36,10 +37,12 @@ CLASSES = {
     3: 'complex'
 }
 
-def ensure_directories():
-    """Ensure required directories exist"""
-    DATA_DIR.mkdir(exist_ok=True)
-    LABELED_DATA_DIR.mkdir(exist_ok=True)
+# Model path for YOLO auto-generation
+MODEL_PATH = project_root / "models" / "best.pt"
+
+def is_dataset_configured():
+    """Check if dataset directories are configured"""
+    return DATASET_DIR is not None and IMAGES_DIR is not None and LABELS_DIR is not None
 
 def get_image_dimensions(image_path):
     """Get image dimensions without loading full image"""
@@ -80,16 +83,114 @@ def generate_etag(file_path):
     etag_data = f"{file_path.name}-{stat.st_size}-{stat.st_mtime}"
     return hashlib.md5(etag_data.encode()).hexdigest()[:16]
 
+@app.route('/api/dataset/status', methods=['GET'])
+def get_dataset_status():
+    """Check if dataset is configured"""
+    return jsonify({
+        'configured': is_dataset_configured(),
+        'dataset_dir': str(DATASET_DIR) if DATASET_DIR else None,
+        'images_dir': str(IMAGES_DIR) if IMAGES_DIR else None,
+        'labels_dir': str(LABELS_DIR) if LABELS_DIR else None
+    })
+
+@app.route('/api/dataset/select', methods=['POST'])
+def select_dataset():
+    """
+    Set dataset directory (either from GUI selection or provided path)
+    Expects JSON: { "path": "/path/to/dataset" } or empty for GUI dialog
+    """
+    global DATASET_DIR, IMAGES_DIR, LABELS_DIR
+
+    try:
+        data = request.get_json() or {}
+        dataset_path = data.get('path')
+
+        if not dataset_path:
+            # Show GUI dialog for directory selection
+            dataset_path = select_dataset_directory()
+            if not dataset_path:
+                return jsonify({'error': 'No directory selected'}), 400
+
+        # Validate dataset structure
+        try:
+            images_dir, labels_dir = validate_dataset_structure(dataset_path)
+        except ValueError as e:
+            return jsonify({'error': str(e), 'invalid_structure': True}), 400
+
+        # Check if labels need to be generated
+        image_files = list(images_dir.glob("*.png"))
+        unlabeled_count = len([
+            img for img in image_files
+            if not (labels_dir / f"{img.stem}.txt").exists()
+        ])
+
+        # Set global directories
+        DATASET_DIR = Path(dataset_path)
+        IMAGES_DIR = images_dir
+        LABELS_DIR = labels_dir
+
+        return jsonify({
+            'success': True,
+            'dataset_dir': str(DATASET_DIR),
+            'images_dir': str(IMAGES_DIR),
+            'labels_dir': str(LABELS_DIR),
+            'total_images': len(image_files),
+            'unlabeled_images': unlabeled_count,
+            'needs_labels': unlabeled_count > 0
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/dataset/generate-labels', methods=['POST'])
+def generate_labels():
+    """Generate YOLO labels for unlabeled images"""
+    if not is_dataset_configured():
+        return jsonify({'error': 'Dataset not configured'}), 400
+
+    try:
+        data = request.get_json() or {}
+        confidence = data.get('confidence', 0.25)
+
+        # Generate labels
+        prepare_labels_for_dataset(
+            IMAGES_DIR,
+            LABELS_DIR,
+            model_path=str(MODEL_PATH),
+            confidence=confidence,
+            verbose=False  # No console output for API
+        )
+
+        # Count generated labels
+        image_files = list(IMAGES_DIR.glob("*.png"))
+        labeled_count = len([
+            img for img in image_files
+            if (LABELS_DIR / f"{img.stem}.txt").exists()
+        ])
+
+        return jsonify({
+            'success': True,
+            'total_images': len(image_files),
+            'labeled_images': labeled_count,
+            'message': f'Generated labels for {labeled_count} images'
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/images', methods=['GET'])
 def get_images():
     """Get list of all available images"""
+    if not is_dataset_configured():
+        return jsonify({'error': 'Dataset not configured. Please select a dataset directory first.'}), 400
+
     try:
         images = []
-        for img_path in sorted(DATA_DIR.glob("*.png")):
+        for img_path in sorted(IMAGES_DIR.glob("*.png")):
             width, height = get_image_dimensions(img_path)
 
             # Check if labels exist
-            label_file = LABELED_DATA_DIR / f"{img_path.stem}.txt"
+            label_file = LABELS_DIR / f"{img_path.stem}.txt"
             has_labels = label_file.exists()
             label_count = 0
 
@@ -120,14 +221,14 @@ def get_images():
 @app.route('/api/image/<filename>')
 def serve_image(filename):
     """Serve image file with optimized caching"""
+    if not is_dataset_configured():
+        return jsonify({'error': 'Dataset not configured'}), 400
+
     try:
-        # First try data directory
-        image_path = DATA_DIR / filename
+        # Images are in IMAGES_DIR
+        image_path = IMAGES_DIR / filename
         if not image_path.exists():
-            # Try labeled data directory
-            image_path = LABELED_DATA_DIR / filename
-            if not image_path.exists():
-                return jsonify({'error': 'Image not found'}), 404
+            return jsonify({'error': 'Image not found'}), 404
 
         # Generate ETag for this file
         etag = generate_etag(image_path)
@@ -179,18 +280,19 @@ def serve_image_options(filename):
 @app.route('/api/annotations/<filename>', methods=['GET'])
 def get_annotations(filename):
     """Get annotations for specific image"""
+    if not is_dataset_configured():
+        return jsonify({'error': 'Dataset not configured'}), 400
+
     try:
-        image_path = DATA_DIR / filename
+        image_path = IMAGES_DIR / filename
         if not image_path.exists():
-            image_path = LABELED_DATA_DIR / filename
-            if not image_path.exists():
-                return jsonify({'error': 'Image not found'}), 404
+            return jsonify({'error': 'Image not found'}), 404
 
         # Get image dimensions
         img_width, img_height = get_image_dimensions(image_path)
 
         # Load annotations
-        label_file = LABELED_DATA_DIR / f"{Path(filename).stem}.txt"
+        label_file = LABELS_DIR / f"{Path(filename).stem}.txt"
         annotations = []
 
         if label_file.exists():
@@ -219,27 +321,23 @@ def get_annotations(filename):
 @app.route('/api/annotations/<filename>', methods=['POST'])
 def save_annotations(filename):
     """Save annotations for specific image"""
+    if not is_dataset_configured():
+        return jsonify({'error': 'Dataset not configured'}), 400
+
     try:
         data = request.get_json()
         annotations = data.get('annotations', [])
 
         # Get image dimensions
-        image_path = DATA_DIR / filename
+        image_path = IMAGES_DIR / filename
         if not image_path.exists():
-            image_path = LABELED_DATA_DIR / filename
-            if not image_path.exists():
-                return jsonify({'error': 'Image not found'}), 404
+            return jsonify({'error': 'Image not found'}), 404
 
         img_width, img_height = get_image_dimensions(image_path)
 
-        # Copy image to labeled data directory if not already there
-        output_image_path = LABELED_DATA_DIR / filename
-        if not output_image_path.exists():
-            import shutil
-            shutil.copy2(image_path, output_image_path)
-
+        # Note: Images stay in IMAGES_DIR (read-only), only labels are saved to LABELS_DIR
         # Convert annotations to YOLO format and save
-        label_file = LABELED_DATA_DIR / f"{Path(filename).stem}.txt"
+        label_file = LABELS_DIR / f"{Path(filename).stem}.txt"
 
         with open(label_file, 'w') as f:
             for annotation in annotations:
@@ -266,15 +364,18 @@ def get_classes():
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     """Get annotation statistics"""
+    if not is_dataset_configured():
+        return jsonify({'error': 'Dataset not configured'}), 400
+
     try:
-        total_images = len(list(DATA_DIR.glob("*.png")))
-        labeled_images = len(list(LABELED_DATA_DIR.glob("*.txt")))
+        total_images = len(list(IMAGES_DIR.glob("*.png")))
+        labeled_images = len(list(LABELS_DIR.glob("*.txt")))
 
         # Count total annotations
         total_annotations = 0
         class_counts = {class_id: 0 for class_id in CLASSES.keys()}
 
-        for label_file in LABELED_DATA_DIR.glob("*.txt"):
+        for label_file in LABELS_DIR.glob("*.txt"):
             with open(label_file, 'r') as f:
                 for line in f:
                     parts = line.strip().split()
@@ -306,15 +407,21 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'data_dir': str(DATA_DIR.absolute()),
-        'labeled_data_dir': str(LABELED_DATA_DIR.absolute()),
-        'data_dir_exists': DATA_DIR.exists(),
-        'labeled_data_dir_exists': LABELED_DATA_DIR.exists()
+        'dataset_configured': is_dataset_configured(),
+        'dataset_dir': str(DATASET_DIR) if DATASET_DIR else None,
+        'images_dir': str(IMAGES_DIR) if IMAGES_DIR else None,
+        'labels_dir': str(LABELS_DIR) if LABELS_DIR else None,
+        'model_path': str(MODEL_PATH),
+        'model_exists': MODEL_PATH.exists()
     })
 
 if __name__ == '__main__':
-    ensure_directories()
-    print(f"Data directory: {DATA_DIR.absolute()}")
-    print(f"Labeled data directory: {LABELED_DATA_DIR.absolute()}")
+    print("="*60)
+    print("YOLO Annotation Tool - Flask Backend")
+    print("="*60)
+    print(f"Model path: {MODEL_PATH}")
+    print(f"Model exists: {MODEL_PATH.exists()}")
     print(f"Classes: {CLASSES}")
+    print("\nWaiting for frontend to select dataset directory...")
+    print("="*60)
     app.run(debug=True, host='0.0.0.0', port=5002)
