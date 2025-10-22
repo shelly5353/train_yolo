@@ -5,14 +5,34 @@ Loads pre-generated labels and allows editing
 """
 
 import os
+import sys
 import cv2
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
+import argparse
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from utilities.config_manager import PathConfig
 
 class SimpleYOLOEditor:
-    def __init__(self, output_dir="labeld_data"):
+    def __init__(self, output_dir=None):
+        # Use config manager if no directory specified
+        if output_dir is None:
+            config = PathConfig()
+            try:
+                output_dir = config.get_or_select_directory(
+                    key='last_labels_dir',
+                    title='Select Directory with Labeled Images'
+                )
+            except ValueError:
+                print("No directory selected. Exiting.")
+                return
+
         self.output_dir = Path(output_dir)
 
         # YOLO classes from your model
@@ -329,6 +349,10 @@ class SimpleYOLOEditor:
         self.root.mainloop()
 
 if __name__ == "__main__":
-    tool = SimpleYOLOEditor()
-    if tool.image_files:
+    parser = argparse.ArgumentParser(description='Simple YOLO Label Editor')
+    parser.add_argument('--dir', type=str, help='Directory with labeled images (optional, will prompt if not provided)')
+    args = parser.parse_args()
+
+    tool = SimpleYOLOEditor(output_dir=args.dir)
+    if hasattr(tool, 'image_files') and tool.image_files:
         tool.run()

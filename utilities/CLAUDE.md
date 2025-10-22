@@ -5,6 +5,73 @@ Dataset management, preparation, and analysis scripts for the YOLO training pipe
 
 ## Available Utilities
 
+### 0. config_manager.py - Path Configuration System **[NEW]**
+**Purpose:** Centralized path management for all labeling tools
+
+**Features:**
+- GUI directory selection dialogs (tkinter)
+- Persistent configuration storage (`config.json`)
+- Recent directories history
+- Command-line argument support
+- Cross-tool consistency
+
+**Key Classes:**
+- `PathConfig`: Main configuration manager class
+- Methods: `get_data_dir()`, `set_data_dir()`, `select_directory()`, `get_or_select_directory()`
+
+**Configuration File Structure:**
+```json
+{
+  "paths": {
+    "last_data_dir": "/path/to/unlabeled",
+    "last_labels_dir": "/path/to/labeled",
+    "last_output_dir": "/path/to/output",
+    "model_path": "models/best.pt"
+  },
+  "recent_directories": ["/path1", "/path2"],
+  "preferences": {
+    "remember_last_directory": true,
+    "show_directory_dialog": false,
+    "max_recent_directories": 10
+  }
+}
+```
+
+**Usage in Tools:**
+```python
+from utilities.config_manager import PathConfig
+
+# Get directory with GUI prompt
+config = PathConfig()
+data_dir = config.get_or_select_directory(
+    key='last_data_dir',
+    title='Select Images Directory'
+)
+
+# Or use convenience function
+from utilities.config_manager import get_directory
+data_dir = get_directory(title='Select Directory', config_key='last_data_dir')
+```
+
+**Command Line Integration:**
+```python
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--dir', type=str, help='Data directory')
+args = parser.parse_args()
+
+# If no CLI arg, prompt with GUI
+tool = MyTool(data_dir=args.dir)  # None triggers config manager
+```
+
+**When to Use:**
+- All labeling tools (replaces hardcoded paths)
+- Dataset utilities that need user input
+- Any script that works with multiple directories
+- Tools that should remember user preferences
+
+---
+
 ### 1. augment_dataset.py - Data Augmentation
 **Purpose:** Expand training dataset through image transformations
 

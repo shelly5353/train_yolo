@@ -5,6 +5,7 @@ Handles image serving, annotation CRUD operations, and YOLO format conversion
 """
 
 import os
+import sys
 import json
 import hashlib
 from pathlib import Path
@@ -14,12 +15,19 @@ import cv2
 import numpy as np
 from PIL import Image
 
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from utilities.config_manager import PathConfig
+
 app = Flask(__name__)
 CORS(app)
 
-# Configuration
-DATA_DIR = Path("/Users/shellysmac/Documents/Work/data/unlabeled")
-LABELED_DATA_DIR = Path("/Users/shellysmac/Documents/Work/data/labeled")
+# Configuration - Load from config manager
+config = PathConfig()
+DATA_DIR = Path(config.get_data_dir() or "/Users/shellysmac/Documents/Work/data/unlabeled")
+LABELED_DATA_DIR = Path(config.get_labels_dir() or "/Users/shellysmac/Documents/Work/data/labeled")
 CLASSES = {
     0: 'straight',
     1: 'L-shape',

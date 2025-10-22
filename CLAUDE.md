@@ -44,6 +44,71 @@ The `labeling_tools/annotation_tool/` uses a React/Flask split:
 - **Communication:** REST API on localhost:5002
 - **Startup:** Single `./start.sh` script manages both services
 
+## Path Configuration System
+
+**NEW:** All tools now support flexible directory selection without hardcoded paths.
+
+### Configuration Manager
+
+The `utilities/config_manager.py` module provides centralized path management:
+- **Persistent Storage:** Last-used directories saved in `config.json`
+- **GUI Dialogs:** File browser for easy directory selection
+- **CLI Support:** Optional command-line arguments
+- **Recent Directories:** Quick access to frequently-used paths
+
+### Using Tools with Path Configuration
+
+**Option 1: GUI Selection (Default)**
+```bash
+# Tools will prompt for directory if not specified
+python labeling_tools/simple_edit_tool.py
+# Opens file browser dialog to select directory
+```
+
+**Option 2: Command Line Arguments**
+```bash
+# Specify directory directly
+python labeling_tools/simple_edit_tool.py --dir /path/to/labeled/images
+```
+
+**Option 3: Remembered Paths**
+```bash
+# Tools remember last used directory
+# First time: prompts for selection
+# Next time: asks if you want to use the same directory
+```
+
+### Configuration File
+
+`config.json` (auto-created on first run):
+```json
+{
+  "paths": {
+    "last_data_dir": "/Users/username/Documents/Work/data/unlabeled",
+    "last_labels_dir": "/Users/username/Documents/Work/data/labeled",
+    "last_output_dir": "/Users/username/Documents/Work/data/labeled",
+    "model_path": "models/best.pt"
+  },
+  "recent_directories": [
+    "/Users/username/Documents/Work/data/unlabeled",
+    "/Users/username/Documents/Work/data/labeled"
+  ],
+  "preferences": {
+    "remember_last_directory": true,
+    "show_directory_dialog": false,
+    "max_recent_directories": 10
+  }
+}
+```
+
+**Note:** `config.json` is user-specific and excluded from git (in `.gitignore`).
+
+### Preferences
+
+- `remember_last_directory`: Auto-use last directory (default: true)
+- `show_directory_dialog`: Always show directory picker (default: false)
+- `max_recent_directories`: Number of recent dirs to remember (default: 10)
+
 ## Common Commands
 
 ### Setup

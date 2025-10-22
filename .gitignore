@@ -62,3 +62,6 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# User-specific configuration
+config.json

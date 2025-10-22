@@ -1,0 +1,18 @@
+{
+  "paths": {
+    "last_data_dir": "/Users/shellysmac/Documents/Work/data/unlabeled",
+    "last_labels_dir": "/Users/shellysmac/Documents/Work/data/labeled",
+    "last_output_dir": "/Users/shellysmac/Documents/Work/data/labeled",
+    "model_path": "models/best.pt"
+  },
+  "recent_directories": [
+    "/Users/shellysmac/Documents/Work/data/unlabeled",
+    "/Users/shellysmac/Documents/Work/data/labeled",
+    "/Users/shellysmac/Documents/Work/data/augmented"
+  ],
+  "preferences": {
+    "remember_last_directory": true,
+    "show_directory_dialog": false,
+    "max_recent_directories": 10
+  }
+}
