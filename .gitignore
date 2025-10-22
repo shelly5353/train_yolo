@@ -65,3 +65,10 @@ temp/
 # Large dataset zip files (stored in /Users/shellysmac/Documents/Work/data)
 utilities/yolo_training_dataset.zip
 old_datasets/old_yolo_training_dataset.zip
+
+# Large dataset folders (stored in /Users/shellysmac/Documents/Work/data)
+utilities/training_dataset_final/
+utilities/yolo_training_dataset/
+old_datasets/old_augmented_dataset/
+old_datasets/old_training_dataset_final/
+old_datasets/old_yolo_training_dataset/
