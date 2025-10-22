@@ -62,3 +62,6 @@ logs/
 # Temporary files
 tmp/
 temp/
+# Large dataset zip files (stored in /Users/shellysmac/Documents/Work/data)
+utilities/yolo_training_dataset.zip
+old_datasets/old_yolo_training_dataset.zip
