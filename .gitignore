@@ -72,3 +72,8 @@ utilities/yolo_training_dataset/
 old_datasets/old_augmented_dataset/
 old_datasets/old_training_dataset_final/
 old_datasets/old_yolo_training_dataset/
+
+# Data folders (stored in /Users/shellysmac/Documents/Work/data)
+data/augmented/
+data/labeled/
+data/unlabeled/
