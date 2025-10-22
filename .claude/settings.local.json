@@ -35,7 +35,8 @@
       "Bash(tree:*)",
       "Bash(git stash:*)",
       "Bash(git reset:*)",
-      "Bash(zip:*)"
+      "Bash(zip:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []
