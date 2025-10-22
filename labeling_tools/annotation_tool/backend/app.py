@@ -18,8 +18,8 @@ app = Flask(__name__)
 CORS(app)
 
 # Configuration
-DATA_DIR = Path("/Users/shellysmac/Documents/Work/train_yolo/labeled_new_dataset")
-LABELED_DATA_DIR = Path("/Users/shellysmac/Documents/Work/train_yolo/labeled_new_dataset")
+DATA_DIR = Path("/Users/shellysmac/Documents/Work/data/unlabeled")
+LABELED_DATA_DIR = Path("/Users/shellysmac/Documents/Work/data/labeled")
 CLASSES = {
     0: 'straight',
     1: 'L-shape',
