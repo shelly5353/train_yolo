@@ -12,13 +12,22 @@ from flask_cors import CORS
 import cv2
 import numpy as np
 from PIL import Image
+from typing import Optional, Tuple
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuration
-DATA_DIR = Path("../../data")
-LABELED_DATA_DIR = Path("../../labeld_data")
+# Configuration - Now dynamic, set via API
+DATA_DIR: Optional[Path] = None
+LABELED_DATA_DIR: Optional[Path] = None
+IMAGES_DIR: Optional[Path] = None
+LABELS_DIR: Optional[Path] = None
+
 CLASSES = {
     0: 'straight',
     1: 'L-shape',
@@ -28,8 +37,175 @@ CLASSES = {
 
 def ensure_directories():
     """Ensure required directories exist"""
-    DATA_DIR.mkdir(exist_ok=True)
-    LABELED_DATA_DIR.mkdir(exist_ok=True)
+    if DATA_DIR:
+        DATA_DIR.mkdir(exist_ok=True)
+    if LABELED_DATA_DIR:
+        LABELED_DATA_DIR.mkdir(exist_ok=True)
+    if LABELS_DIR and not LABELS_DIR.exists():
+        LABELS_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created labels directory: {LABELS_DIR}")
+
+def generate_missing_labels(images_dir: Path, labels_dir: Path, model_path: str = "../../models/best.pt", confidence: float = 0.25) -> Tuple[int, int]:
+    """
+    Run YOLO on images without labels
+
+    Returns:
+        Tuple of (generated_count, error_count)
+    """
+    try:
+        # Import YOLO only when needed
+        from ultralytics import YOLO
+
+        # Get absolute model path
+        model_abs_path = Path(__file__).parent / model_path
+        if not model_abs_path.exists():
+            logger.error(f"Model not found at {model_abs_path}")
+            return 0, 0
+
+        # Load model
+        logger.info(f"Loading YOLO model from {model_abs_path}")
+        model = YOLO(str(model_abs_path))
+
+        # Ensure labels directory exists
+        labels_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get all PNG files
+        image_files = list(images_dir.glob("*.png"))
+        generated_count = 0
+        error_count = 0
+
+        for img_path in image_files:
+            label_path = labels_dir / f"{img_path.stem}.txt"
+
+            # Skip if label already exists
+            if label_path.exists():
+                continue
+
+            try:
+                # Run inference
+                results = model(str(img_path), conf=confidence, verbose=False)
+
+                if results and len(results) > 0:
+                    result = results[0]
+
+                    if result.boxes and len(result.boxes) > 0:
+                        # Get image dimensions
+                        img_height, img_width = result.orig_shape
+
+                        # Write YOLO format labels
+                        with open(label_path, 'w') as f:
+                            for box in result.boxes:
+                                cls = int(box.cls[0])
+                                # Convert xyxy to xywh normalized
+                                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                                x_center = ((x1 + x2) / 2) / img_width
+                                y_center = ((y1 + y2) / 2) / img_height
+                                width = (x2 - x1) / img_width
+                                height = (y2 - y1) / img_height
+
+                                f.write(f"{cls} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
+
+                        generated_count += 1
+                        logger.info(f"Generated labels for {img_path.name}")
+                    else:
+                        # Create empty label file for images with no detections
+                        label_path.touch()
+                        logger.info(f"No detections for {img_path.name}, created empty label file")
+
+            except Exception as e:
+                logger.error(f"Error processing {img_path.name}: {e}")
+                error_count += 1
+
+        logger.info(f"Label generation complete: {generated_count} generated, {error_count} errors")
+        return generated_count, error_count
+
+    except ImportError:
+        logger.error("ultralytics package not installed. Please install with: pip install ultralytics")
+        return 0, 0
+    except Exception as e:
+        logger.error(f"Error in generate_missing_labels: {e}")
+        return 0, 0
+
+@app.route('/api/set-directory', methods=['POST'])
+def set_directory():
+    """
+    Set working directory for images and labels
+    Request body: {"directory": "/absolute/path/to/dataset"}
+    """
+    global DATA_DIR, LABELED_DATA_DIR, IMAGES_DIR, LABELS_DIR
+
+    try:
+        data = request.get_json()
+        directory = data.get('directory')
+
+        if not directory:
+            return jsonify({'error': 'Directory path is required'}), 400
+
+        # Convert to Path object
+        base_dir = Path(directory)
+
+        # Validate directory exists
+        if not base_dir.exists():
+            return jsonify({'error': f'Directory not found: {directory}'}), 400
+
+        if not base_dir.is_dir():
+            return jsonify({'error': f'Path is not a directory: {directory}'}), 400
+
+        # Check for images/ subfolder
+        images_dir = base_dir / "images"
+        if not images_dir.exists():
+            return jsonify({'error': "Missing 'images/' subfolder in the selected directory"}), 400
+
+        # Check for PNG files
+        png_files = list(images_dir.glob("*.png"))
+        if not png_files:
+            return jsonify({'error': "No PNG images found in images/ subfolder"}), 400
+
+        # Create labels/ folder if it doesn't exist
+        labels_dir = base_dir / "labels"
+        if not labels_dir.exists():
+            labels_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created labels directory: {labels_dir}")
+
+        # Count existing labels
+        existing_labels = len(list(labels_dir.glob("*.txt")))
+
+        # Set global directory variables
+        DATA_DIR = images_dir  # For backward compatibility
+        LABELED_DATA_DIR = base_dir  # For backward compatibility
+        IMAGES_DIR = images_dir
+        LABELS_DIR = labels_dir
+
+        # Auto-generate missing labels if requested
+        auto_generate = data.get('auto_generate', True)
+        generated_count = 0
+        error_count = 0
+
+        if auto_generate:
+            logger.info("Auto-generating missing labels...")
+            generated_count, error_count = generate_missing_labels(images_dir, labels_dir)
+
+        # Return success with statistics
+        response = {
+            'success': True,
+            'directory': str(base_dir),
+            'images_dir': str(images_dir),
+            'labels_dir': str(labels_dir),
+            'images_count': len(png_files),
+            'existing_labels': existing_labels,
+            'generated_labels': generated_count,
+            'generation_errors': error_count,
+            'total_labels': existing_labels + generated_count
+        }
+
+        logger.info(f"Directory set successfully: {base_dir}")
+        logger.info(f"Images: {len(png_files)}, Existing labels: {existing_labels}, Generated: {generated_count}")
+
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Error setting directory: {e}")
+        return jsonify({'error': str(e)}), 500
 
 def get_image_dimensions(image_path):
     """Get image dimensions without loading full image"""
@@ -68,12 +244,19 @@ def bbox_to_yolo(bbox, img_width, img_height):
 def get_images():
     """Get list of all available images"""
     try:
+        # Check if directory is set
+        if not IMAGES_DIR or not LABELS_DIR:
+            return jsonify({
+                'error': 'No directory selected. Please select a dataset directory first.',
+                'needs_directory': True
+            }), 400
+
         images = []
-        for img_path in sorted(DATA_DIR.glob("*.png")):
+        for img_path in sorted(IMAGES_DIR.glob("*.png")):
             width, height = get_image_dimensions(img_path)
 
             # Check if labels exist
-            label_file = LABELED_DATA_DIR / f"{img_path.stem}.txt"
+            label_file = LABELS_DIR / f"{img_path.stem}.txt"
             has_labels = label_file.exists()
             label_count = 0
 
@@ -105,12 +288,13 @@ def get_images():
 def serve_image(filename):
     """Serve image file"""
     try:
-        image_path = DATA_DIR / filename
+        # Check if directory is set
+        if not IMAGES_DIR:
+            return jsonify({'error': 'No directory selected'}), 400
+
+        image_path = IMAGES_DIR / filename
         if not image_path.exists():
-            # Try labeled data directory
-            image_path = LABELED_DATA_DIR / filename
-            if not image_path.exists():
-                return jsonify({'error': 'Image not found'}), 404
+            return jsonify({'error': 'Image not found'}), 404
 
         return send_file(str(image_path))
     except Exception as e:
@@ -120,17 +304,19 @@ def serve_image(filename):
 def get_annotations(filename):
     """Get annotations for specific image"""
     try:
-        image_path = DATA_DIR / filename
+        # Check if directory is set
+        if not IMAGES_DIR or not LABELS_DIR:
+            return jsonify({'error': 'No directory selected'}), 400
+
+        image_path = IMAGES_DIR / filename
         if not image_path.exists():
-            image_path = LABELED_DATA_DIR / filename
-            if not image_path.exists():
-                return jsonify({'error': 'Image not found'}), 404
+            return jsonify({'error': 'Image not found'}), 404
 
         # Get image dimensions
         img_width, img_height = get_image_dimensions(image_path)
 
         # Load annotations
-        label_file = LABELED_DATA_DIR / f"{Path(filename).stem}.txt"
+        label_file = LABELS_DIR / f"{Path(filename).stem}.txt"
         annotations = []
 
         if label_file.exists():
@@ -160,26 +346,22 @@ def get_annotations(filename):
 def save_annotations(filename):
     """Save annotations for specific image"""
     try:
+        # Check if directory is set
+        if not IMAGES_DIR or not LABELS_DIR:
+            return jsonify({'error': 'No directory selected'}), 400
+
         data = request.get_json()
         annotations = data.get('annotations', [])
 
         # Get image dimensions
-        image_path = DATA_DIR / filename
+        image_path = IMAGES_DIR / filename
         if not image_path.exists():
-            image_path = LABELED_DATA_DIR / filename
-            if not image_path.exists():
-                return jsonify({'error': 'Image not found'}), 404
+            return jsonify({'error': 'Image not found'}), 404
 
         img_width, img_height = get_image_dimensions(image_path)
 
-        # Copy image to labeled data directory if not already there
-        output_image_path = LABELED_DATA_DIR / filename
-        if not output_image_path.exists():
-            import shutil
-            shutil.copy2(image_path, output_image_path)
-
         # Convert annotations to YOLO format and save
-        label_file = LABELED_DATA_DIR / f"{Path(filename).stem}.txt"
+        label_file = LABELS_DIR / f"{Path(filename).stem}.txt"
 
         with open(label_file, 'w') as f:
             for annotation in annotations:
@@ -207,14 +389,26 @@ def get_classes():
 def get_stats():
     """Get annotation statistics"""
     try:
-        total_images = len(list(DATA_DIR.glob("*.png")))
-        labeled_images = len(list(LABELED_DATA_DIR.glob("*.txt")))
+        # Check if directory is set
+        if not IMAGES_DIR or not LABELS_DIR:
+            return jsonify({
+                'total_images': 0,
+                'labeled_images': 0,
+                'unlabeled_images': 0,
+                'total_annotations': 0,
+                'class_distribution': [],
+                'completion_rate': 0,
+                'needs_directory': True
+            })
+
+        total_images = len(list(IMAGES_DIR.glob("*.png")))
+        labeled_images = len(list(LABELS_DIR.glob("*.txt")))
 
         # Count total annotations
         total_annotations = 0
         class_counts = {class_id: 0 for class_id in CLASSES.keys()}
 
-        for label_file in LABELED_DATA_DIR.glob("*.txt"):
+        for label_file in LABELS_DIR.glob("*.txt"):
             with open(label_file, 'r') as f:
                 for line in f:
                     parts = line.strip().split()
@@ -246,15 +440,15 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'data_dir': str(DATA_DIR.absolute()),
-        'labeled_data_dir': str(LABELED_DATA_DIR.absolute()),
-        'data_dir_exists': DATA_DIR.exists(),
-        'labeled_data_dir_exists': LABELED_DATA_DIR.exists()
+        'data_dir': str(DATA_DIR.absolute()) if DATA_DIR else None,
+        'labeled_data_dir': str(LABELED_DATA_DIR.absolute()) if LABELED_DATA_DIR else None,
+        'images_dir': str(IMAGES_DIR.absolute()) if IMAGES_DIR else None,
+        'labels_dir': str(LABELS_DIR.absolute()) if LABELS_DIR else None,
+        'directory_set': bool(IMAGES_DIR and LABELS_DIR)
     })
 
 if __name__ == '__main__':
-    ensure_directories()
-    print(f"Data directory: {DATA_DIR.absolute()}")
-    print(f"Labeled data directory: {LABELED_DATA_DIR.absolute()}")
+    print("Annotation Tool Backend Starting...")
+    print("Waiting for directory selection via API...")
     print(f"Classes: {CLASSES}")
     app.run(debug=True, host='0.0.0.0', port=5002)

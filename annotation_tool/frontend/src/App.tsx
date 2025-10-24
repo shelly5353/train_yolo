@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ImageCanvas } from './components/ImageCanvas';
 import { Sidebar } from './components/Sidebar';
+import { DirectorySelector, DirectoryStats } from './components/DirectorySelector';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ApiService } from './services/api';
 import {
@@ -15,6 +16,8 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 
 function App() {
   // State
+  const [directorySet, setDirectorySet] = useState(false);
+  const [directoryPath, setDirectoryPath] = useState<string | null>(null);
   const [images, setImages] = useState<ImageInfo[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -23,44 +26,41 @@ function App() {
   const [currentTool, setCurrentTool] = useState<Tool>(Tool.BBOX);
   const [currentClass, setCurrentClass] = useState(0);
   const [stats, setStats] = useState<AnnotationStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load initial data
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  // Handle directory selection
+  const handleDirectorySet = async (path: string, dirStats: DirectoryStats) => {
+    setDirectoryPath(path);
+    setDirectorySet(true);
 
-        // Health check
-        await ApiService.healthCheck();
+    // Load initial data after directory is set
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        // Load images and classes
-        const [imagesData, classesData, statsData] = await Promise.all([
-          ApiService.fetchImages(),
-          ApiService.fetchClasses(),
-          ApiService.fetchStats()
-        ]);
+      // Load images and classes
+      const [imagesData, classesData, statsData] = await Promise.all([
+        ApiService.fetchImages(),
+        ApiService.fetchClasses(),
+        ApiService.fetchStats()
+      ]);
 
-        setImages(imagesData.images);
-        setClasses(classesData);
-        setStats(statsData);
+      setImages(imagesData.images);
+      setClasses(classesData);
+      setStats(statsData);
 
-        // Load annotations for first image
-        if (imagesData.images.length > 0) {
-          await loadAnnotations(imagesData.images[0].filename);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-      } finally {
-        setIsLoading(false);
+      // Load annotations for first image
+      if (imagesData.images.length > 0) {
+        await loadAnnotations(imagesData.images[0].filename);
       }
-    };
-
-    loadInitialData();
-  }, []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Load annotations for current image
   const loadAnnotations = async (filename: string) => {
@@ -191,16 +191,21 @@ function App() {
     'escape': () => setSelectedAnnotation(null)
   };
 
-  useKeyboardShortcuts(shortcuts, !isLoading && !error);
+  useKeyboardShortcuts(shortcuts, !isLoading && !error && directorySet);
 
-  // Loading state
+  // Show directory selector first
+  if (!directorySet) {
+    return <DirectorySelector onDirectorySelected={handleDirectorySet} />;
+  }
+
+  // Loading state after directory is set
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
           <div className="text-lg font-medium text-gray-900">Loading annotation tool...</div>
-          <div className="text-sm text-gray-500">Connecting to backend and loading images</div>
+          <div className="text-sm text-gray-500">Loading images from {directoryPath}</div>
         </div>
       </div>
     );
@@ -212,16 +217,25 @@ function App() {
       <div className="h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-          <div className="text-lg font-medium text-gray-900 mb-2">Connection Error</div>
+          <div className="text-lg font-medium text-gray-900 mb-2">Error Loading Images</div>
           <div className="text-sm text-gray-600 mb-4">{error}</div>
           <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={() => {
+              setDirectorySet(false);
+              setError(null);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mr-2"
           >
-            Retry
+            Choose Different Directory
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Restart
           </button>
           <div className="mt-4 text-xs text-gray-500">
-            Make sure the Flask backend is running on port 5000
+            Make sure the Flask backend is running on port 5002
           </div>
         </div>
       </div>
@@ -234,9 +248,18 @@ function App() {
       <div className="h-screen flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="text-lg font-medium text-gray-900 mb-2">No Images Found</div>
-          <div className="text-sm text-gray-600">
-            No images found in the data directory. Please add some PNG images to get started.
+          <div className="text-sm text-gray-600 mb-4">
+            No images found in the selected directory. Please choose a directory with PNG images.
           </div>
+          <button
+            onClick={() => {
+              setDirectorySet(false);
+              setError(null);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Choose Different Directory
+          </button>
         </div>
       </div>
     );

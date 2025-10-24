@@ -11,6 +11,8 @@ A modern, fast, and responsive image annotation tool specifically designed for Y
 
 ### 🎯 **Core Functionality**
 - **YOLO Format Support**: Native support for YOLO format labels (class + normalized bounding box)
+- **Directory Selection**: Choose any dataset folder from your computer
+- **Auto-labeling**: Automatically generate labels for unlabeled images using trained YOLO model
 - **High-Resolution Images**: Optimized for large scanned images with efficient rendering
 - **Real-time Statistics**: Live annotation progress and class distribution tracking
 - **Batch Operations**: Save annotations, clear all, navigate quickly through datasets
@@ -32,6 +34,7 @@ A modern, fast, and responsive image annotation tool specifically designed for Y
 ### Prerequisites
 - **Python 3.8+** with pip
 - **Node.js 16+** with npm
+- **YOLO Model**: `best.pt` file in `models/` directory (for auto-labeling)
 - **macOS** (optimized for, but works on other platforms)
 
 ### Installation & Launch
@@ -49,13 +52,23 @@ A modern, fast, and responsive image annotation tool specifically designed for Y
    The script will:
    - Set up Python virtual environment
    - Install all dependencies
-   - Start Flask backend on `http://localhost:5000`
+   - Start Flask backend on `http://localhost:5002`
    - Start React frontend on `http://localhost:3000`
    - Open your default browser
 
-3. **Access the tool:**
+3. **Select your dataset directory:**
+   - The tool will show a directory selector on first launch
+   - Enter the path to your dataset folder
+   - Your dataset should have this structure:
+   ```
+   your_dataset/
+   ├── images/       # PNG files here
+   └── labels/       # YOLO format labels (will be created if missing)
+   ```
+
+4. **Access the tool:**
    - **Web Interface**: http://localhost:3000
-   - **API Endpoints**: http://localhost:5000/api
+   - **API Endpoints**: http://localhost:5002/api
 
 ## 🎮 Usage Guide
 
@@ -116,27 +129,46 @@ annotation_tool/
 
 ## 🔧 Configuration
 
+### Dataset Directory Selection
+- **First Launch**: The tool will prompt for a dataset directory
+- **Directory Structure**: Must contain `images/` subfolder with PNG files
+- **Auto-labeling**: If enabled, will automatically run YOLO on unlabeled images
+- **Labels Storage**: Saved in `labels/` subfolder of your selected directory
+
 ### Backend Configuration
 Edit `backend/app.py` to modify:
-- **Data directories**: `DATA_DIR` and `LABELED_DATA_DIR` paths
 - **Classes**: Update `CLASSES` dictionary for your dataset
-- **API port**: Default is 5000
+- **API port**: Default is 5002
+- **YOLO Model Path**: Update model path in `generate_missing_labels()` function
 
 ### Frontend Configuration
 Edit `frontend/src/services/api.ts` to modify:
-- **API base URL**: Default is `http://localhost:5000/api`
+- **API base URL**: Default is `http://localhost:5002/api`
 - **Request timeouts and retry logic**
 
 ## 📊 Data Format
 
+### Directory Structure
+```
+your_dataset/
+├── images/       # PNG image files
+│   ├── img001.png
+│   ├── img002.png
+│   └── ...
+└── labels/       # YOLO format text files (auto-created)
+    ├── img001.txt
+    ├── img002.txt
+    └── ...
+```
+
 ### Input Images
-- **Format**: PNG files in the `data/` directory
+- **Format**: PNG files in the `images/` subfolder
 - **Naming**: Any filename (e.g., `image001.png`, `sample.png`)
 - **Size**: Optimized for large high-resolution images
 
 ### Output Annotations
 - **Format**: YOLO format text files
-- **Location**: `labeld_data/` directory
+- **Location**: `labels/` subfolder in your selected directory
 - **Filename**: Same as image with `.txt` extension
 - **Format**: `class_id x_center y_center width height` (normalized 0-1)
 
@@ -162,6 +194,7 @@ npm start
 ```
 
 ### API Endpoints
+- `POST /api/set-directory` - Set working dataset directory
 - `GET /api/images` - List all images with metadata
 - `GET /api/annotations/{filename}` - Get annotations for image
 - `POST /api/annotations/{filename}` - Save annotations for image
@@ -195,8 +228,13 @@ npm start
 - Install dependencies: `cd frontend && npm install`
 - Clear cache: `npm start -- --reset-cache`
 
+**Directory selection issues:**
+- Ensure your dataset folder has an `images/` subfolder
+- PNG files must be in the `images/` subfolder
+- The `labels/` folder will be created automatically if missing
+
 **Images not loading:**
-- Verify images are in `../../data/` directory relative to backend
+- Verify you've selected a valid directory with the directory selector
 - Check file permissions and formats (PNG only)
 - Check browser console for API errors
 

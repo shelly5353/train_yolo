@@ -1,8 +1,26 @@
 import { ImageInfo, Annotation, ClassInfo, AnnotationStats } from '../types';
+import { DirectoryStats } from '../components/DirectorySelector';
 
 const API_BASE_URL = 'http://localhost:5002/api';
 
 export class ApiService {
+  static async setDirectory(path: string, autoGenerate: boolean = true): Promise<DirectoryStats> {
+    const response = await fetch(`${API_BASE_URL}/set-directory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        directory: path,
+        auto_generate: autoGenerate
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to set directory');
+    }
+
+    return response.json();
+  }
   static async fetchImages(): Promise<{ images: ImageInfo[]; classes: { [key: number]: string } }> {
     const response = await fetch(`${API_BASE_URL}/images`);
     if (!response.ok) {

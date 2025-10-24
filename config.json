@@ -1,0 +1,14 @@
+{
+  "paths": {
+    "last_data_dir": "",
+    "last_labels_dir": "",
+    "last_output_dir": "",
+    "model_path": "models/best.pt"
+  },
+  "recent_directories": [],
+  "preferences": {
+    "remember_last_directory": true,
+    "show_directory_dialog": true,
+    "max_recent_directories": 10
+  }
+}
