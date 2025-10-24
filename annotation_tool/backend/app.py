@@ -368,9 +368,16 @@ def get_images():
                 except:
                     label_count = 0
 
+            # Try to get relative path, but fall back to absolute if it fails
+            try:
+                path_str = str(img_path.relative_to(Path.cwd()))
+            except ValueError:
+                # Image is not relative to current directory, use absolute path
+                path_str = str(img_path)
+
             images.append({
                 'filename': img_path.name,
-                'path': str(img_path.relative_to(Path.cwd())),
+                'path': path_str,
                 'width': width,
                 'height': height,
                 'has_labels': has_labels,
