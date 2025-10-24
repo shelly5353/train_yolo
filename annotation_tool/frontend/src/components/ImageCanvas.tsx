@@ -325,16 +325,42 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
     ctx.restore();
   }, [transform, annotations, selectedAnnotation, currentBBox, isDragging, currentClass, imageLoaded, imageWidth, imageHeight]);
 
-  // Update canvas size
+  // Update canvas size only when container dimensions change
   useEffect(() => {
     if (canvasRef.current && containerRef.current) {
       const canvas = canvasRef.current;
       const container = containerRef.current;
 
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      const newWidth = container.clientWidth;
+      const newHeight = container.clientHeight;
+
+      // Only update if dimensions actually changed (to avoid clearing canvas unnecessarily)
+      if (canvas.width !== newWidth || canvas.height !== newHeight) {
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+      }
     }
-  });
+  }, []); // Run once on mount
+
+  // Handle window resize to update canvas size
+  useEffect(() => {
+    const handleResize = () => {
+      if (canvasRef.current && containerRef.current) {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        const newWidth = container.clientWidth;
+        const newHeight = container.clientHeight;
+
+        if (canvas.width !== newWidth || canvas.height !== newHeight) {
+          canvas.width = newWidth;
+          canvas.height = newHeight;
+        }
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const getCursorStyle = () => {
     if (isPanning) return 'grabbing';
