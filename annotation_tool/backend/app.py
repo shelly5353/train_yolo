@@ -673,12 +673,37 @@ def get_annotations(filename):
         if not IMAGES_DIR or not LABELS_DIR:
             return jsonify({'error': 'No directory selected'}), 400
 
-        image_path = IMAGES_DIR / filename
-        if not image_path.exists():
-            return jsonify({'error': 'Image not found'}), 404
+        # Handle PDF page requests (format: filename_pageN.png)
+        if '_page' in filename and filename.endswith('.png'):
+            # Extract PDF name and page number
+            base_name = filename.replace('.png', '')
+            parts = base_name.rsplit('_page', 1)
+            if len(parts) == 2:
+                pdf_stem = parts[0]
+                page_num = int(parts[1])
 
-        # Get image dimensions
-        img_width, img_height = get_image_dimensions(image_path)
+                # Check if source PDF exists
+                pdf_path = IMAGES_DIR / f"{pdf_stem}.pdf"
+                if not pdf_path.exists():
+                    return jsonify({'error': f'Source PDF not found: {pdf_stem}.pdf'}), 404
+
+                # Get dimensions from cached page or convert
+                cached_page = get_or_create_pdf_page_cache(pdf_path, page_num)
+                if cached_page:
+                    img_width, img_height = get_image_dimensions(cached_page)
+                else:
+                    # Use default dimensions if cache fails
+                    img_width, img_height = (1275, 1650)
+            else:
+                return jsonify({'error': 'Invalid PDF page filename format'}), 400
+        else:
+            # Regular image file
+            image_path = IMAGES_DIR / filename
+            if not image_path.exists():
+                return jsonify({'error': 'Image not found'}), 404
+
+            # Get image dimensions
+            img_width, img_height = get_image_dimensions(image_path)
 
         # Load annotations
         label_file = LABELS_DIR / f"{Path(filename).stem}.txt"
