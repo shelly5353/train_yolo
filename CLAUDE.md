@@ -66,6 +66,21 @@ train_yolo/
 ## DEVELOPMENT NOTES
 
 ### Recent Changes (Latest Update):
+- **Critical Annotation Tool Improvements** (2025-10-25): Implemented three major enhancements
+  - **Multi-Page PDF Support**: PDFs now automatically expand into individual page entries (filename_page1.png, etc.)
+    - Added PyMuPDF dependency for PDF-to-PNG conversion at 150 DPI
+    - Intelligent caching system in pdf_cache/ directory prevents re-conversion
+    - Each page treated as separate image in annotation workflow
+    - Labels saved with matching _pageN naming convention
+  - **Auto-Run YOLO Before Annotation**: Enhanced auto-generation with full format support
+    - Now processes PNG, JPG, and PDF pages (previously only PNG)
+    - Converts all PDF pages to PNG cache before running inference
+    - Detailed progress logging shows "Processing: X/Y images" with success/error indicators
+    - Filters unlabeled images upfront for efficiency
+  - **Prevent Label Duplication**: Added verification logging to annotation saving
+    - Logs file mode ('w' for overwrite) before saving
+    - Verifies line count matches sent annotations after save
+    - Warns if mismatch detected, returns verified_line_count in API
 - **Backend Path Handling Fix** (2025-10-24): Fixed image loading errors for datasets outside backend directory
   - Backend now handles both relative and absolute image paths
   - Allows annotation tool to work with datasets anywhere on filesystem (Desktop, external drives, etc.)
