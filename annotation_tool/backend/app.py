@@ -126,6 +126,70 @@ def generate_missing_labels(images_dir: Path, labels_dir: Path, model_path: str 
         logger.error(f"Error in generate_missing_labels: {e}")
         return 0, 0
 
+@app.route('/api/browse-directories', methods=['GET'])
+def browse_directories():
+    """
+    Return list of common directories and recent datasets
+    """
+    try:
+        home = Path.home()
+
+        # Common paths to check
+        common_paths = [
+            home / "Desktop",
+            home / "Documents",
+            home / "Documents" / "Work",
+            home / "Documents" / "Work" / "data",
+            home / "Documents" / "Work" / "train_yolo",
+            Path("/Users/shellysmac/Documents/Work/data"),  # Add specific known path
+        ]
+
+        available_dirs = []
+
+        for base_path in common_paths:
+            if not base_path.exists():
+                continue
+
+            try:
+                # Check subdirectories for valid datasets
+                for item in base_path.iterdir():
+                    if item.is_dir():
+                        # Check if it's a valid dataset directory
+                        images_dir = item / "images"
+                        if images_dir.exists():
+                            png_count = len(list(images_dir.glob("*.png")))
+                            pdf_count = len(list(images_dir.glob("*.pdf")))
+                            jpg_count = len(list(images_dir.glob("*.jpg"))) + len(list(images_dir.glob("*.jpeg")))
+                            total_images = png_count + pdf_count + jpg_count
+
+                            if total_images > 0:
+                                labels_dir = item / "labels"
+                                txt_count = len(list(labels_dir.glob("*.txt"))) if labels_dir.exists() else 0
+
+                                available_dirs.append({
+                                    'path': str(item),
+                                    'name': item.name,
+                                    'parent': str(base_path),
+                                    'images_count': total_images,
+                                    'labels_count': txt_count,
+                                    'has_labels': txt_count > 0,
+                                    'file_types': f"PNG:{png_count} PDF:{pdf_count} JPG:{jpg_count}" if (pdf_count > 0 or jpg_count > 0) else None
+                                })
+            except PermissionError:
+                continue
+
+        # Sort by path
+        available_dirs.sort(key=lambda x: x['path'])
+
+        return jsonify({
+            'directories': available_dirs,
+            'home': str(home)
+        })
+
+    except Exception as e:
+        logger.error(f"Error browsing directories: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/set-directory', methods=['POST'])
 def set_directory():
     """
@@ -136,30 +200,47 @@ def set_directory():
 
     try:
         data = request.get_json()
+        logger.info(f"Received set-directory request: {data}")  # Debug logging
+
         directory = data.get('directory')
 
         if not directory:
+            logger.error("No directory path provided")
             return jsonify({'error': 'Directory path is required'}), 400
 
         # Convert to Path object
         base_dir = Path(directory)
+        logger.info(f"Checking directory: {base_dir}")
 
         # Validate directory exists
         if not base_dir.exists():
+            logger.error(f"Directory not found: {directory}")
             return jsonify({'error': f'Directory not found: {directory}'}), 400
 
         if not base_dir.is_dir():
+            logger.error(f"Path is not a directory: {directory}")
             return jsonify({'error': f'Path is not a directory: {directory}'}), 400
 
         # Check for images/ subfolder
         images_dir = base_dir / "images"
         if not images_dir.exists():
+            logger.error(f"Missing images/ subfolder in {directory}")
             return jsonify({'error': "Missing 'images/' subfolder in the selected directory"}), 400
 
-        # Check for PNG files
+        # Check for image files (PNG or PDF)
         png_files = list(images_dir.glob("*.png"))
-        if not png_files:
-            return jsonify({'error': "No PNG images found in images/ subfolder"}), 400
+        pdf_files = list(images_dir.glob("*.pdf"))
+        jpg_files = list(images_dir.glob("*.jpg"))
+        jpeg_files = list(images_dir.glob("*.jpeg"))
+
+        all_image_files = png_files + pdf_files + jpg_files + jpeg_files
+
+        if not all_image_files:
+            logger.error(f"No image files (PNG/PDF/JPG) found in {images_dir}")
+            return jsonify({'error': "No image files (PNG/PDF/JPG) found in images/ subfolder"}), 400
+
+        # Log what type of files we found
+        logger.info(f"Found {len(png_files)} PNG, {len(pdf_files)} PDF, {len(jpg_files + jpeg_files)} JPG files")
 
         # Create labels/ folder if it doesn't exist
         labels_dir = base_dir / "labels"
@@ -191,11 +272,16 @@ def set_directory():
             'directory': str(base_dir),
             'images_dir': str(images_dir),
             'labels_dir': str(labels_dir),
-            'images_count': len(png_files),
+            'images_count': len(all_image_files),
             'existing_labels': existing_labels,
             'generated_labels': generated_count,
             'generation_errors': error_count,
-            'total_labels': existing_labels + generated_count
+            'total_labels': existing_labels + generated_count,
+            'file_types': {
+                'png': len(png_files),
+                'pdf': len(pdf_files),
+                'jpg': len(jpg_files + jpeg_files)
+            }
         }
 
         logger.info(f"Directory set successfully: {base_dir}")
@@ -209,8 +295,17 @@ def set_directory():
 
 def get_image_dimensions(image_path):
     """Get image dimensions without loading full image"""
-    with Image.open(image_path) as img:
-        return img.size  # (width, height)
+    # Handle PDF files - return default dimensions
+    if str(image_path).lower().endswith('.pdf'):
+        # Default A4 size at 72 DPI
+        return (612, 792)  # (width, height)
+
+    try:
+        with Image.open(image_path) as img:
+            return img.size  # (width, height)
+    except Exception as e:
+        logger.warning(f"Could not get dimensions for {image_path}: {e}")
+        return (800, 600)  # Default dimensions if we can't read the file
 
 def yolo_to_bbox(yolo_coords, img_width, img_height):
     """Convert YOLO format to pixel bounding box"""
@@ -252,7 +347,13 @@ def get_images():
             }), 400
 
         images = []
-        for img_path in sorted(IMAGES_DIR.glob("*.png")):
+        # Get all supported image files
+        all_files = list(IMAGES_DIR.glob("*.png")) + \
+                   list(IMAGES_DIR.glob("*.pdf")) + \
+                   list(IMAGES_DIR.glob("*.jpg")) + \
+                   list(IMAGES_DIR.glob("*.jpeg"))
+
+        for img_path in sorted(all_files):
             width, height = get_image_dimensions(img_path)
 
             # Check if labels exist
