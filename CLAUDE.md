@@ -66,6 +66,11 @@ train_yolo/
 ## DEVELOPMENT NOTES
 
 ### Recent Changes (Latest Update):
+- **Canvas Rendering Fix** (2025-10-24): Resolved critical bug in ImageCanvas component where images were loading but not displaying
+  - Fixed useEffect infinite loop that was clearing canvas on every render
+  - Added proper dependency arrays to prevent unnecessary re-renders
+  - Separated canvas initialization from window resize handling
+  - Web annotation tool now displays images correctly
 - **Enhanced YOLO Labeling Tool**: Added AI-assisted labeling with auto-detection
 - **Simple Edit Tool**: Quick editor for pre-generated labels
 - **Batch Detection Script**: Automated processing of entire datasets
