@@ -397,7 +397,18 @@ def set_directory():
 
         if auto_generate:
             logger.info("Auto-generating missing labels...")
+            logger.info(f"Starting generation for {len(all_image_files)} source files...")
             generated_count, error_count = generate_missing_labels(images_dir, labels_dir)
+            logger.info(f"Generation complete: {generated_count} labels created, {error_count} errors")
+
+        # RE-COUNT labels after generation (critical for accurate stats)
+        final_label_count = len(list(labels_dir.glob("*.txt")))
+
+        # Count total pages (for PDFs, each page is separate)
+        total_pages = len(png_files) + len(jpg_files + jpeg_files)
+        for pdf_file in pdf_files:
+            page_count = get_pdf_page_count(pdf_file)
+            total_pages += page_count
 
         # Return success with statistics
         response = {
@@ -405,11 +416,12 @@ def set_directory():
             'directory': str(base_dir),
             'images_dir': str(images_dir),
             'labels_dir': str(labels_dir),
-            'images_count': len(all_image_files),
-            'existing_labels': existing_labels,
-            'generated_labels': generated_count,
+            'images_count': total_pages,  # Total pages (including PDF pages)
+            'source_files': len(all_image_files),  # Original file count
+            'existing_labels': existing_labels,  # Labels before generation
+            'generated_labels': generated_count,  # Newly created labels
             'generation_errors': error_count,
-            'total_labels': existing_labels + generated_count,
+            'total_labels': final_label_count,  # UPDATED count after generation
             'file_types': {
                 'png': len(png_files),
                 'pdf': len(pdf_files),
@@ -418,7 +430,7 @@ def set_directory():
         }
 
         logger.info(f"Directory set successfully: {base_dir}")
-        logger.info(f"Images: {len(png_files)}, Existing labels: {existing_labels}, Generated: {generated_count}")
+        logger.info(f"Total pages: {total_pages}, Labels before: {existing_labels}, Generated: {generated_count}, Labels after: {final_label_count}")
 
         return jsonify(response)
 

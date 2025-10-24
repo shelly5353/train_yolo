@@ -29,6 +29,7 @@ interface AvailableDirectory {
 export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirectorySelected }) => {
   const [directoryPath, setDirectoryPath] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DirectoryStats | null>(null);
   const [autoGenerate, setAutoGenerate] = useState(true);
@@ -74,6 +75,13 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirector
     setError(null);
     setStats(null);
 
+    // Set initial loading message
+    if (autoGenerate) {
+      setLoadingMessage('Scanning directory and converting PDFs...');
+    } else {
+      setLoadingMessage('Loading dataset...');
+    }
+
     try {
       const response = await fetch('http://localhost:5002/api/set-directory', {
         method: 'POST',
@@ -92,6 +100,13 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirector
 
       setStats(data);
 
+      // Update loading message after generation completes
+      if (autoGenerate && data.generated_labels > 0) {
+        setLoadingMessage(`Successfully generated ${data.generated_labels} labels!`);
+      } else {
+        setLoadingMessage('Dataset loaded successfully!');
+      }
+
       // Wait a moment to show the success state
       setTimeout(() => {
         onDirectorySelected(directoryPath.trim(), data);
@@ -100,6 +115,7 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirector
       setError(err instanceof Error ? err.message : 'Failed to set directory');
     } finally {
       setIsLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -249,8 +265,30 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirector
               </div>
             )}
 
+            {/* Loading Status */}
+            {isLoading && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Loader2 className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5 animate-spin" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-blue-900 mb-1">
+                      {loadingMessage}
+                    </div>
+                    {autoGenerate && (
+                      <div className="text-xs text-blue-700 mt-2">
+                        <div>⏳ This may take several minutes for large datasets...</div>
+                        <div className="mt-1">• Converting PDFs to images</div>
+                        <div>• Running YOLO model for object detection</div>
+                        <div>• Saving annotations to label files</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Success Stats */}
-            {stats && stats.success && (
+            {stats && stats.success && !isLoading && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -259,13 +297,16 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirector
                       Directory Set Successfully!
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs text-green-700">
-                      <div>• Total images: {stats.images_count}</div>
-                      <div>• Existing labels: {stats.existing_labels}</div>
+                      <div>• Total pages: {stats.images_count}</div>
+                      <div>• Labels before: {stats.existing_labels}</div>
                       {autoGenerate && stats.generated_labels > 0 && (
                         <>
                           <div>• Generated labels: {stats.generated_labels}</div>
                           <div>• Total labels: {stats.total_labels}</div>
                         </>
+                      )}
+                      {!autoGenerate && (
+                        <div>• Total labels: {stats.total_labels}</div>
                       )}
                     </div>
                   </div>
@@ -286,7 +327,7 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirector
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {autoGenerate ? 'Setting Directory & Generating Labels...' : 'Setting Directory...'}
+                  {loadingMessage || 'Processing...'}
                 </span>
               ) : stats?.success ? (
                 <span className="flex items-center justify-center gap-2">
@@ -296,7 +337,7 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({ onDirector
               ) : (
                 <span className="flex items-center justify-center gap-2">
                   <Folder className="w-5 h-5" />
-                  Set Directory
+                  {autoGenerate ? 'Set Directory & Generate Labels' : 'Set Directory'}
                 </span>
               )}
             </button>
