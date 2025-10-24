@@ -66,6 +66,11 @@ train_yolo/
 ## DEVELOPMENT NOTES
 
 ### Recent Changes (Latest Update):
+- **Backend Path Handling Fix** (2025-10-24): Fixed image loading errors for datasets outside backend directory
+  - Backend now handles both relative and absolute image paths
+  - Allows annotation tool to work with datasets anywhere on filesystem (Desktop, external drives, etc.)
+  - Prevents "not in subpath" 500 errors when loading images from external directories
+  - DirectorySelector dropdown now fully functional with external datasets
 - **Canvas Rendering Fix** (2025-10-24): Resolved critical bug in ImageCanvas component where images were loading but not displaying
   - Fixed useEffect infinite loop that was clearing canvas on every render
   - Added proper dependency arrays to prevent unnecessary re-renders
