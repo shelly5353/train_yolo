@@ -66,6 +66,16 @@ train_yolo/
 ## DEVELOPMENT NOTES
 
 ### Recent Changes (Latest Update):
+- **PDF Page Annotations Bug Fix** (2025-10-25): Fixed critical bug preventing PDF page annotations from loading
+  - Issue: /api/annotations endpoint returned "Image not found" for PDF page requests (e.g., CO25S002554_page2.png)
+  - Root Cause: Endpoint was checking for image existence in IMAGES_DIR, but PDF pages are cached in pdf_cache/ directory
+  - Solution: Added PDF page handling logic to get_annotations function
+    - Detect virtual PDF page filenames (format: filename_pageN.png)
+    - Extract PDF stem and page number from filename
+    - Verify source PDF exists and get dimensions from cached page
+    - Mirrors the PDF handling logic already present in serve_image endpoint
+  - Result: All 857 PDF page annotations now load correctly in web UI
+  - Tested: Verified with multiple PDF pages via curl and browser testing
 - **Critical Annotation Tool Improvements** (2025-10-25): Implemented three major enhancements
   - **Multi-Page PDF Support**: PDFs now automatically expand into individual page entries (filename_page1.png, etc.)
     - Added PyMuPDF dependency for PDF-to-PNG conversion at 150 DPI
