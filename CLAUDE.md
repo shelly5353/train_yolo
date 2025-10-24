@@ -1,370 +1,144 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## PROJECT OVERVIEW
+- **Project Name:** YOLO Training and Labeling Tool
+- **Primary Goal/MVP:** Create and train a YOLO object detection model for identifying different shapes (straight, L-shape, U-shape, complex)
+- **Project Type:** AI/ML Computer Vision Project
+- **Main Language(s):** Python
 
-## Project Overview
+## GIT WORKFLOW RULES
+- Always work on 'dev' branch, never commit directly to main
+- Commit after every significant change with clear descriptions
+- Ask user before syncing dev branch to GitHub
+- Use GitHub CLI: gh repo sync --source [branch-name]
 
-**YOLO Object Detection Training Pipeline** - Complete end-to-end system for labeling images, training models, and detecting 4 shape classes: straight, L-shape, U-shape, and complex.
-
-**Active Model:** `models/best.pt` (21MB, YOLOv8, Sept 28 2025)
-
-## Architecture Overview
-
-### Multi-Stage Pipeline
-
+## PROJECT STRUCTURE
 ```
-unlabeled images → labeling tools → labeled dataset → utilities → training → testing → deployment
-```
-
-**Key Architectural Decision:** Tools are separated by function (labeling/utilities/training/testing) rather than by technology. This allows mixing GUI tools (tkinter), web apps (React/Flask), and CLI scripts within their functional categories.
-
-### Data Flow
-
-1. **Input:** Raw images in `data/unlabeled/` (310 images)
-2. **Annotation:** Multiple tool options produce YOLO format (class_id x_center y_center width height, normalized 0-1)
-3. **Processing:** Utilities augment and package data
-4. **Training:** Google Colab scripts (local training possible but slower)
-5. **Testing:** Validation suite before deployment
-6. **Output:** Trained .pt model file
-
-### Model Integration Pattern
-
-All labeling tools can load `models/best.pt` for AI-assisted annotation. The model is a standard Ultralytics YOLOv8 checkpoint that includes:
-- Model architecture and weights
-- Class names metadata (4 classes)
-- Training configuration
-
-**Critical:** When modifying tools, always check if they reference model paths. Default is `best.pt` or `../models/best.pt` from tool directories.
-
-### Web Annotation Tool Architecture
-
-The `labeling_tools/annotation_tool/` uses a React/Flask split:
-- **Backend (Flask):** File I/O, YOLO format parsing, model inference API
-- **Frontend (React):** Canvas rendering, trackpad gestures, keyboard shortcuts
-- **Communication:** REST API on localhost:5002
-- **Startup:** Single `./start.sh` script manages both services
-
-## Path Configuration System
-
-**NEW:** All tools now support flexible directory selection without hardcoded paths.
-
-### Configuration Manager
-
-The `utilities/config_manager.py` module provides centralized path management:
-- **Persistent Storage:** Last-used directories saved in `config.json`
-- **GUI Dialogs:** File browser for easy directory selection
-- **CLI Support:** Optional command-line arguments
-- **Recent Directories:** Quick access to frequently-used paths
-
-### Using Tools with Path Configuration
-
-**Option 1: GUI Selection (Default)**
-```bash
-# Tools will prompt for directory if not specified
-python labeling_tools/simple_edit_tool.py
-# Opens file browser dialog to select directory
+train_yolo/
+├── CLAUDE.md                    # This file - project documentation and development notes
+├── README.md                    # User-facing project documentation
+├── requirements.txt             # Python dependencies
+├── .gitignore                   # Git ignore rules
+├── best.pt                     # Trained YOLO model weights (22.5MB)
+├── data/                       # Original training images (312 files)
+├── labeld_data/                # Labeled output directory
+├── label_tool.py               # Original interactive YOLO labeling tool
+├── enhanced_label_tool.py      # AI-assisted labeling tool with model integration
+├── simple_edit_tool.py         # Simple editor for pre-generated labels
+├── batch_detect.py             # Batch processing script for automated labeling
+├── annotation_tool/            # Modern web-based annotation interface
+│   ├── backend/                # Flask API server
+│   │   ├── app.py             # Main Flask application
+│   │   └── requirements.txt   # Backend Python dependencies
+│   ├── frontend/              # React web application
+│   │   ├── src/               # React source code
+│   │   ├── package.json       # Frontend dependencies
+│   │   └── tailwind.config.js # Styling configuration
+│   ├── start.sh               # Auto-startup script
+│   └── README.md              # Web tool documentation
+└── .claude/                    # Claude Code configuration
 ```
 
-**Option 2: Command Line Arguments**
-```bash
-# Specify directory directly
-python labeling_tools/simple_edit_tool.py --dir /path/to/images
-```
-
-**Option 3: Remembered Paths**
-```bash
-# Tools remember last used directory
-# First time: prompts for selection
-# Next time: asks if you want to use the same directory
-```
-
-### Automatic YOLO Label Generation
-
-**All labeling tools now automatically run YOLO detection when labels are missing:**
-
-1. **You select a directory** with PNG images
-2. **Tool checks for existing labels** (.txt files matching image names)
-3. **If labels are missing:** Automatically runs YOLO model (`best.pt`) to generate initial labels
-4. **If labels exist:** Loads them for editing
-
-**Example workflow:**
-```bash
-# Run any labeling tool
-python labeling_tools/label_tool.py
-
-# Select directory: /Users/you/new_images/
-# Tool detects: 50 images, 0 have labels
-# Auto-runs YOLO: Generates 50 label files
-# Opens tool: Ready to review and edit
-```
-
-**This means you can:**
-- Point any tool at a folder of unlabeled images
-- Get instant AI-assisted labeling
-- Skip the separate batch_detect.py step
-- Start editing immediately
-
-### Configuration File
-
-`config.json` (auto-created on first run):
-```json
-{
-  "paths": {
-    "last_data_dir": "/Users/username/Documents/Work/data/unlabeled",
-    "last_labels_dir": "/Users/username/Documents/Work/data/labeled",
-    "last_output_dir": "/Users/username/Documents/Work/data/labeled",
-    "model_path": "models/best.pt"
-  },
-  "recent_directories": [
-    "/Users/username/Documents/Work/data/unlabeled",
-    "/Users/username/Documents/Work/data/labeled"
-  ],
-  "preferences": {
-    "remember_last_directory": true,
-    "show_directory_dialog": false,
-    "max_recent_directories": 10
-  }
-}
-```
-
-**Note:** `config.json` is user-specific and excluded from git (in `.gitignore`).
-
-### Preferences
-
-- `remember_last_directory`: Auto-use last directory (default: true)
-- `show_directory_dialog`: Always show directory picker (default: false)
-- `max_recent_directories`: Number of recent dirs to remember (default: 10)
-
-## Common Commands
-
-### Setup
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Setup web annotation tool (first time only)
-cd labeling_tools/annotation_tool/frontend
-npm install
-cd ../../..
-```
-
-### Labeling Workflows
-
-**All tools now support directory selection and auto-label generation!**
-
-```bash
-# Simple editor (best for quick reviews)
-python labeling_tools/simple_edit_tool.py
-# Opens dialog to select directory
-# Auto-generates labels if missing
-# Loads images + labels for editing
-
-# Full labeling tool
-python labeling_tools/label_tool.py
-# Opens dialog to select directory
-# Auto-generates labels if missing
-
-# Enhanced tool (shows AI confidence)
-python labeling_tools/enhanced_label_tool.py
-# Opens dialog to select directory
-# Auto-generates labels if missing
-
-# Batch detection (standalone, if you prefer separate steps)
-python labeling_tools/batch_detect.py --confidence 0.3
-# Opens dialog to select directory
-# Runs YOLO on all images
-
-# Web annotation tool (professional interface)
-cd labeling_tools/annotation_tool
-./start.sh
-# Opens http://localhost:3000
-# Note: Web tool uses separate config, see annotation_tool/CLAUDE.md
-```
-
-**Command-line usage (skip dialog):**
-```bash
-# Specify directory directly
-python labeling_tools/label_tool.py --dir /path/to/images
-python labeling_tools/simple_edit_tool.py --dir /path/to/images
-```
-
-### Dataset Preparation
-
-```bash
-# Check dataset statistics
-cd utilities
-python dataset_stats.py
-
-# Augment dataset (4x expansion)
-cd utilities
-python augment_dataset.py
-
-# Create training package
-cd utilities
-python create_training_dataset.py
-# Output: training_dataset/ with train/val split
-
-# Prepare for Google Colab
-cd utilities
-python prepare_colab_dataset.py
-```
-
-### Model Training
-
-Training is designed for Google Colab (free GPU access):
-
-```bash
-# On Colab: Initial training
-!python colab_training_script.py
-
-# On Colab: Continue/fine-tune existing model
-!python colab_continue_training.py
-```
-
-### Testing
-
-```bash
-# Quick single image test
-cd testing_tools
-python test_single_image.py
-
-# Full validation suite
-cd testing_tools
-python test_improved_model.py
-# Output: test_results/ with metrics and confusion matrix
-```
-
-## Git Workflow
-
-**Critical:** Always work on `dev` branch, never commit directly to `main`.
-
-```bash
-# Ensure on dev branch
-git checkout dev
-
-# After changes
-git add -A
-git commit -m "Description"
-
-# Before syncing to GitHub, ask user permission
-gh repo sync --source dev
-```
-
-When renaming or moving functions:
-1. **Always rename old implementations** with `_old` suffix or similar
-2. **Move deprecated code** to `old_tools/` folder
-3. **Update all references** before removing old code
-4. **Test** that nothing breaks after moves
-
-## Project Organization Principles
-
-### Active vs Archived
-
-- **Active work:** `data/`, `models/`, `labeling_tools/`, `utilities/`, `training_tools/`, `testing_tools/`
-- **Archive:** `old_tools/`, `old_datasets/` - kept for reference but not maintained
-
-### Folder-Level Documentation
-
-Each major folder has its own `CLAUDE.md` with specific details:
-- `data/CLAUDE.md` - YOLO format explanation, data workflow
-- `models/CLAUDE.md` - Model versions, usage examples
-- `labeling_tools/CLAUDE.md` - All 5 tools documented with selection guide
-- `utilities/CLAUDE.md` - Each utility script's purpose and usage
-- `training_tools/CLAUDE.md` - Colab setup, hyperparameters
-- `testing_tools/CLAUDE.md` - Testing procedures, metrics interpretation
-
-**Read these folder-level docs** before modifying code in those folders.
-
-## Model Management
-
-**Current Model:** `models/best.pt` (Sept 28, 2025)
-
-When updating model:
-1. Backup current model with date: `best_YYYY-MM-DD.pt`
-2. Test new model thoroughly
-3. Update `models/CLAUDE.md` with changes
-4. Only replace if performance improves
-5. Keep single active model named `best.pt` for simplicity
-
-## Key Technical Details
-
-### YOLO Label Format
-```
-class_id x_center y_center width height
-```
-All coordinates normalized 0.0-1.0 relative to image dimensions.
-
-### Classes
-```python
-{
-    0: 'straight',
-    1: 'L-shape',
-    2: 'U-shape',
-    3: 'complex'
-}
-```
-
-### File Naming Convention
-- Images: `filename.png`
-- Labels: `filename.txt` (same basename, different extension)
-- Both must exist in same directory for training
-
-### Web Tool Ports
-- Backend API: `http://localhost:5002`
-- Frontend App: `http://localhost:3000`
-
-## Troubleshooting Quick Reference
-
-**Model not found:** Check path references to `models/best.pt`
-
-**Import errors:** Ensure working directory matches script expectations (most scripts assume run from their folder)
-
-**Web tool won't start:**
-```bash
-cd labeling_tools/annotation_tool/frontend
-npm install  # Install dependencies
-cd ..
-./start.sh
-```
-
-**Low detection confidence:** Adjust `--confidence` threshold (try 0.15-0.4 range)
-
-## Development Notes
-
-### Recent Major Changes (October 2025)
-
-1. **Project Reorganization:** Consolidated scattered files into functional folders
-2. **Model Naming:** Clear v1/v2 naming with backup strategy
-3. **Dataset Consolidation:** Single `data/` folder with status subfolders
-4. **Documentation:** Comprehensive CLAUDE.md in each major folder
-
-### Tool Evolution
-
-The project evolved from PDF processing (abandoned) to direct image labeling. Old PDF-related tools in `old_tools/` are not maintained. Current workflow uses direct image input only.
-
-### Preferred Tools by Use Case
-
-- **Small batch (<50 images):** `label_tool.py` or web tool
-- **Large batch (>100 images):** `batch_detect.py` → review with `simple_edit_tool.py`
-- **Professional workflow:** Web annotation tool (`./annotation_tool/start.sh`)
-- **AI-assisted:** `enhanced_label_tool.py`
-
-## Dependencies Management
-
-Root `requirements.txt` covers Python dependencies for all tools except web annotation:
-- Core: `opencv-python`, `Pillow`, `torch`, `ultralytics`
-- Utilities: `tqdm`, `PyMuPDF`
-- Web backend: `Flask`, `Flask-CORS`
-
-Web frontend has separate `package.json` in `labeling_tools/annotation_tool/frontend/`.
-
-## Important Reminders
-
-- **Always work on dev branch** (not main)
-- **Read folder-specific CLAUDE.md** before modifying code
-- **Backup models before replacing** with new versions
-- **Use absolute paths** or ensure correct working directory
-- **Test after moving/renaming** functions
-- **When deprecating, mark as old** and move to `old_tools/`
-- **Ask user before** syncing to GitHub
-- **Check model path references** when moving files
+## CORE FUNCTIONALITY
+
+### YOLO Labeling Tool (label_tool.py)
+- **Purpose:** Interactive GUI tool for labeling images for YOLO training
+- **Classes:** 4 shape categories (straight, L-shape, U-shape, complex)
+- **Features:**
+  - Tkinter GUI with image display and navigation
+  - Mouse-based bounding box drawing
+  - Class selection dropdown
+  - Keyboard shortcuts (Left/Right arrows, Space, Delete)
+  - YOLO format export (normalized coordinates)
+  - Real-time label visualization with color coding
+
+### Model Components
+- **Model File:** best.pt (trained YOLO weights)
+- **Training Data:** 312 images in data/ directory
+- **Output Format:** YOLO txt format with normalized bounding boxes
+
+### Dependencies
+- opencv-python>=4.0.0 (image processing)
+- Pillow>=8.0.0 (image handling)
+- torch>=1.7.0 (PyTorch for YOLO)
+- ultralytics>=8.0.0 (YOLO implementation)
+
+## DEVELOPMENT NOTES
+
+### Recent Changes (Latest Update):
+- **Canvas Rendering Fix** (2025-10-24): Resolved critical bug in ImageCanvas component where images were loading but not displaying
+  - Fixed useEffect infinite loop that was clearing canvas on every render
+  - Added proper dependency arrays to prevent unnecessary re-renders
+  - Separated canvas initialization from window resize handling
+  - Web annotation tool now displays images correctly
+- **Enhanced YOLO Labeling Tool**: Added AI-assisted labeling with auto-detection
+- **Simple Edit Tool**: Quick editor for pre-generated labels
+- **Batch Detection Script**: Automated processing of entire datasets
+- **Modern Web Annotation Tool**: Full React/Flask web application with trackpad support
+- **Complete Tool Suite**: Four different tools for various labeling workflows
+
+### Tool Suite Overview:
+
+#### 1. **Original Label Tool** (`label_tool.py`)
+- Basic manual labeling with tkinter GUI
+- Mouse-based bounding box drawing
+- Class selection and keyboard shortcuts
+- Original tool for ground-up labeling
+
+#### 2. **Enhanced Label Tool** (`enhanced_label_tool.py`)
+- **AI-Assisted Labeling**: Runs trained model first, then allows manual editing
+- **Confidence Threshold Control**: Adjustable detection sensitivity
+- **Full-screen Canvas**: Original image size with scrollbars
+- **Smart Workflow**: Model detection + manual correction
+- **Keyboard Shortcuts**: Press 'R' to run model detection
+
+#### 3. **Simple Edit Tool** (`simple_edit_tool.py`)
+- **Pre-label Editor**: Works on already labeled data
+- **Fast Review**: Quickly review and correct batch-generated labels
+- **Statistics Tracking**: Shows processed count and label statistics
+- **Minimal Interface**: Focused on editing, not initial labeling
+
+#### 4. **Batch Detection Script** (`batch_detect.py`)
+- **Automated Processing**: Runs model on all images at once
+- **Progress Tracking**: tqdm progress bars and statistics
+- **Confidence Control**: Command-line confidence threshold
+- **Mass Production**: Processes hundreds of images quickly
+- Usage: `python batch_detect.py --confidence 0.3`
+
+#### 5. **Modern Web Annotation Tool** (`annotation_tool/`)
+- **React + Flask Architecture**: Modern web-based interface
+- **Trackpad Gestures**: Native macOS pinch-to-zoom and pan
+- **High Performance**: 60fps smooth interactions
+- **Professional UI**: Color-coded classes, real-time statistics
+- **Keyboard Shortcuts**: Extensive hotkey support (N, V, H, 1-4, Cmd+S)
+- **Auto-startup**: Single `./start.sh` command launches everything
+
+### Recommended Workflow:
+1. **Batch Detection**: `python batch_detect.py` for initial AI labeling
+2. **Web Tool Review**: `cd annotation_tool && ./start.sh` for professional editing
+3. **Simple Editor**: `python simple_edit_tool.py` for quick corrections
+4. **Enhanced Tool**: `python enhanced_label_tool.py` for AI-assisted refinement
+
+### Technical Improvements:
+- **Canvas Rendering**: Full-resolution display with scrollable interface
+- **Coordinate Precision**: Pixel-perfect bounding box accuracy
+- **Model Integration**: Direct YOLO model inference in labeling tools
+- **Batch Processing**: Efficient handling of large datasets
+- **Web Architecture**: Scalable React/Flask separation
+- **Gesture Support**: Native trackpad integration for macOS
+- **Performance**: Optimized for large images and many annotations
+
+### Current Status:
+- **Production Ready**: Complete suite of professional labeling tools
+- **AI Integration**: Model inference integrated into workflow
+- **Web Interface**: Modern browser-based annotation tool
+- **Batch Processing**: Automated initial labeling capability
+- **Cross-Platform**: Tools work on macOS, Linux, Windows
+
+### Dependencies Added:
+- `ultralytics` for YOLO model inference
+- `torch` for model loading and processing
+- `tqdm` for progress bars in batch processing
+- React/TypeScript for web frontend
+- Flask for API backend
+- Tailwind CSS for modern styling
