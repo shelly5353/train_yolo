@@ -1,6 +1,20 @@
 {
-  "buildCommand": "cd annotation_tool/frontend && npm install && npm run build",
+  "version": 2,
+  "buildCommand": "cd annotation_tool/frontend && npm ci && npm run build",
   "outputDirectory": "annotation_tool/frontend/build",
   "devCommand": "cd annotation_tool/frontend && npm start",
-  "installCommand": "cd annotation_tool/frontend && npm install"
+  "installCommand": "cd annotation_tool/frontend && npm ci",
+  "framework": "create-react-app",
+  "regions": ["iad1"],
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "env": {
+    "CI": "false"
+  },
+  "build": {
+    "env": {
+      "CI": "false",
+      "GENERATE_SOURCEMAP": "false"
+    }
+  }
 }
