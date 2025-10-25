@@ -8,7 +8,6 @@ import {
   Mouse,
   Square,
   Hand,
-  Zap,
   BarChart3,
   Keyboard,
   Settings

@@ -94,6 +94,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
       fitImageToCanvas();
     };
     img.src = imageUrl;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl]);
 
   // Fit image to canvas on window resize
@@ -106,6 +107,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageLoaded]);
 
   const fitImageToCanvas = useCallback(() => {
@@ -142,7 +144,8 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
     return { x: imageX, y: imageY };
   }, [transform]);
 
-  // Convert image coordinates to canvas coordinates
+  // Convert image coordinates to canvas coordinates (currently unused but may be needed)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const imageToCanvas = useCallback((imageX: number, imageY: number): Point => {
     return {
       x: imageX * transform.scale + transform.x,
@@ -372,6 +375,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
         y2: Math.max(dragStart.y, point.y)
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPanning, isDragging, dragStart, currentBBox, screenToImage]);
 
   const handleMouseUp = useCallback(() => {
@@ -478,6 +482,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
 
     // Restore context
     ctx.restore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transform, annotations, selectedAnnotation, currentBBox, isDragging, currentClass, imageLoaded, imageWidth, imageHeight]);
 
   // Update canvas size only when container dimensions change
