@@ -1,7 +1,8 @@
 import { ImageInfo, Annotation, ClassInfo, AnnotationStats } from '../types';
 import { DirectoryStats } from '../components/DirectorySelector';
 
-const API_BASE_URL = 'http://localhost:5002/api';
+// Use environment variable for API URL in production, localhost for development
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
 export class ApiService {
   static async setDirectory(path: string, autoGenerate: boolean = true): Promise<DirectoryStats> {

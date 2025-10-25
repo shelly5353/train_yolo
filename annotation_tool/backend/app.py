@@ -1257,4 +1257,10 @@ if __name__ == '__main__':
     print("Annotation Tool Backend Starting...")
     print("Waiting for directory selection via API...")
     print(f"Classes: {CLASSES}")
-    app.run(debug=True, host='0.0.0.0', port=5002)
+
+    # Use environment variables for production deployment
+    port = int(os.environ.get('PORT', 5002))
+    debug = os.environ.get('FLASK_ENV', 'development') == 'development'
+
+    print(f"Starting server on port {port} (debug={debug})")
+    app.run(debug=debug, host='0.0.0.0', port=port)
