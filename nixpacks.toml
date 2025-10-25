@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["pip install -r annotation_tool/backend/requirements.txt"]
+
+[start]
+cmd = "cd annotation_tool/backend && python app.py"
