@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Annotation, ViewTransform, Point, BoundingBox, Tool, MouseButton } from '../types';
+import { Annotation, ViewTransform, Point, BoundingBox, Tool, MouseButton, ClassInfo } from '../types';
+import { ClassEditPopup } from './ClassEditPopup';
+import { ZoomControls } from './ZoomControls';
 
 interface ImageCanvasProps {
   imageUrl: string;
@@ -9,9 +11,11 @@ interface ImageCanvasProps {
   selectedAnnotation: number | null;
   currentTool: Tool;
   currentClass: number;
+  classes: ClassInfo[];
   onAnnotationCreate: (bbox: BoundingBox, classId: number) => void;
   onAnnotationSelect: (id: number | null) => void;
   onAnnotationDelete: (id: number) => void;
+  onAnnotationUpdate: (id: number, newClassId: number) => void;
   className?: string;
 }
 
@@ -37,9 +41,11 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
   selectedAnnotation,
   currentTool,
   currentClass,
+  classes,
   onAnnotationCreate,
   onAnnotationSelect,
   onAnnotationDelete,
+  onAnnotationUpdate,
   className = ''
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,6 +57,16 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
   const [currentBBox, setCurrentBBox] = useState<BoundingBox | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
+
+  // Gesture state for native MacBook trackpad support
+  const [isGesturing, setIsGesturing] = useState(false);
+  const gestureStartScaleRef = useRef<number>(1);
+  const gestureStartTransformRef = useRef<ViewTransform>({ x: 0, y: 0, scale: 1 });
+
+  // Class edit popup state
+  const [showClassPopup, setShowClassPopup] = useState(false);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [editingAnnotationId, setEditingAnnotationId] = useState<number | null>(null);
 
   // Load image
   useEffect(() => {
@@ -117,7 +133,76 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
     };
   }, [transform]);
 
-  // Handle mouse wheel for zooming (with trackpad support)
+  // Apply pan bounds to keep image visible
+  const applyPanBounds = useCallback((x: number, y: number, scale: number): Point => {
+    if (!containerRef.current) return { x, y };
+
+    const containerWidth = containerRef.current.clientWidth;
+    const containerHeight = containerRef.current.clientHeight;
+    const scaledWidth = imageWidth * scale;
+    const scaledHeight = imageHeight * scale;
+
+    // Calculate bounds - allow at least 20% of image to remain visible
+    const minVisibleWidth = scaledWidth * 0.2;
+    const minVisibleHeight = scaledHeight * 0.2;
+
+    const maxX = containerWidth - minVisibleWidth;
+    const minX = -scaledWidth + minVisibleWidth;
+    const maxY = containerHeight - minVisibleHeight;
+    const minY = -scaledHeight + minVisibleHeight;
+
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y))
+    };
+  }, [imageWidth, imageHeight]);
+
+  // Zoom to specific scale at a point
+  const zoomToPoint = useCallback((newScale: number, centerX: number, centerY: number) => {
+    setTransform(prev => {
+      const clampedScale = Math.max(0.1, Math.min(5, newScale));
+      const scaleRatio = clampedScale / prev.scale;
+
+      // Zoom towards the specified point
+      let newX = centerX - (centerX - prev.x) * scaleRatio;
+      let newY = centerY - (centerY - prev.y) * scaleRatio;
+
+      // Apply bounds
+      const bounded = applyPanBounds(newX, newY, clampedScale);
+
+      return { x: bounded.x, y: bounded.y, scale: clampedScale };
+    });
+  }, [applyPanBounds]);
+
+  // Zoom control handlers
+  const handleZoomChange = useCallback((newZoom: number) => {
+    if (!containerRef.current) return;
+
+    const container = containerRef.current;
+    const centerX = container.clientWidth / 2;
+    const centerY = container.clientHeight / 2;
+
+    zoomToPoint(newZoom, centerX, centerY);
+  }, [zoomToPoint]);
+
+  const handleResetZoom = useCallback(() => {
+    if (!containerRef.current) return;
+
+    const container = containerRef.current;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    // Reset to 100% scale, centered
+    const scaledWidth = imageWidth;
+    const scaledHeight = imageHeight;
+
+    const x = (containerWidth - scaledWidth) / 2;
+    const y = (containerHeight - scaledHeight) / 2;
+
+    setTransform({ x, y, scale: 1 });
+  }, [imageWidth, imageHeight]);
+
+  // Handle mouse wheel for zooming (Cmd/Ctrl + scroll)
   const handleWheel = useCallback((event: React.WheelEvent) => {
     event.preventDefault();
 
@@ -127,36 +212,74 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
 
-    // Detect trackpad pinch gesture
-    const isPinch = event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    // Check if this is a zoom gesture (Cmd/Ctrl + scroll or pinch on trackpad)
+    const isZoom = event.ctrlKey || event.metaKey;
 
-    let scaleFactor: number;
+    if (isZoom) {
+      // Smooth zoom with deltaY
+      const zoomSensitivity = 0.002; // Reduced for smoother zoom
+      const delta = -event.deltaY * zoomSensitivity;
+      const scaleFactor = 1 + delta;
 
-    if (isPinch) {
-      // Pinch zoom
-      scaleFactor = event.deltaY > 0 ? 0.9 : 1.1;
+      zoomToPoint(transform.scale * scaleFactor, mouseX, mouseY);
     } else {
-      // Regular scroll for pan
+      // Pan with scroll
       const panSpeed = 1;
-      setTransform(prev => ({
-        ...prev,
-        x: prev.x - event.deltaX * panSpeed,
-        y: prev.y - event.deltaY * panSpeed
-      }));
-      return;
+      setTransform(prev => {
+        const newX = prev.x - event.deltaX * panSpeed;
+        const newY = prev.y - event.deltaY * panSpeed;
+        const bounded = applyPanBounds(newX, newY, prev.scale);
+        return { ...prev, x: bounded.x, y: bounded.y };
+      });
     }
+  }, [transform.scale, zoomToPoint, applyPanBounds]);
 
-    setTransform(prev => {
-      const newScale = Math.max(0.1, Math.min(5, prev.scale * scaleFactor));
-      const scaleRatio = newScale / prev.scale;
+  // Handle native gesture events (MacBook trackpad pinch)
+  const handleGestureStart = useCallback((event: any) => {
+    event.preventDefault();
+    setIsGesturing(true);
+    gestureStartScaleRef.current = event.scale || 1;
+    gestureStartTransformRef.current = transform;
+  }, [transform]);
 
-      // Zoom towards mouse position
-      const newX = mouseX - (mouseX - prev.x) * scaleRatio;
-      const newY = mouseY - (mouseY - prev.y) * scaleRatio;
+  const handleGestureChange = useCallback((event: any) => {
+    event.preventDefault();
 
-      return { x: newX, y: newY, scale: newScale };
-    });
+    if (!canvasRef.current || !isGesturing) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    // Calculate new scale based on gesture
+    const gestureScale = event.scale || 1;
+    const scaleDelta = gestureScale / gestureStartScaleRef.current;
+    const newScale = gestureStartTransformRef.current.scale * scaleDelta;
+
+    zoomToPoint(newScale, centerX, centerY);
+  }, [isGesturing, zoomToPoint]);
+
+  const handleGestureEnd = useCallback((event: any) => {
+    event.preventDefault();
+    setIsGesturing(false);
   }, []);
+
+  // Attach native gesture event listeners
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Add gesture event listeners for Safari/WebKit (MacBook trackpad)
+    canvas.addEventListener('gesturestart', handleGestureStart as any);
+    canvas.addEventListener('gesturechange', handleGestureChange as any);
+    canvas.addEventListener('gestureend', handleGestureEnd as any);
+
+    return () => {
+      canvas.removeEventListener('gesturestart', handleGestureStart as any);
+      canvas.removeEventListener('gesturechange', handleGestureChange as any);
+      canvas.removeEventListener('gestureend', handleGestureEnd as any);
+    };
+  }, [handleGestureStart, handleGestureChange, handleGestureEnd]);
 
   // Handle mouse events
   const handleMouseDown = useCallback((event: React.MouseEvent) => {
@@ -178,7 +301,13 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
       );
 
       if (clickedAnnotation) {
+        // Select the annotation
         onAnnotationSelect(clickedAnnotation.id);
+
+        // Show class edit popup
+        setEditingAnnotationId(clickedAnnotation.id);
+        setPopupPosition({ x: event.clientX + 10, y: event.clientY + 10 });
+        setShowClassPopup(true);
       } else {
         // Start drawing new bounding box
         setIsDragging(true);
@@ -190,21 +319,23 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
           y2: point.y
         });
         onAnnotationSelect(null);
+        setShowClassPopup(false); // Close popup when drawing new box
       }
     }
   }, [currentTool, annotations, onAnnotationSelect, screenToImage]);
 
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
     if (isPanning && dragStart) {
-      // Pan the image
+      // Pan the image with bounds
       const deltaX = event.clientX - dragStart.x;
       const deltaY = event.clientY - dragStart.y;
 
-      setTransform(prev => ({
-        ...prev,
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
+      setTransform(prev => {
+        const newX = prev.x + deltaX;
+        const newY = prev.y + deltaY;
+        const bounded = applyPanBounds(newX, newY, prev.scale);
+        return { ...prev, x: bounded.x, y: bounded.y };
+      });
 
       setDragStart({ x: event.clientX, y: event.clientY });
     } else if (isDragging && dragStart && currentBBox) {
@@ -369,6 +500,22 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
     return 'default';
   };
 
+  // Handle class selection from popup
+  const handleClassSelect = useCallback((newClassId: number) => {
+    if (editingAnnotationId !== null) {
+      onAnnotationUpdate(editingAnnotationId, newClassId);
+      setShowClassPopup(false);
+      setEditingAnnotationId(null);
+    }
+  }, [editingAnnotationId, onAnnotationUpdate]);
+
+  // Get current class for editing annotation
+  const getEditingAnnotationClass = () => {
+    if (editingAnnotationId === null) return 0;
+    const annotation = annotations.find(ann => ann.id === editingAnnotationId);
+    return annotation?.class_id ?? 0;
+  };
+
   return (
     <div
       ref={containerRef}
@@ -384,6 +531,32 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
       />
+
+      {/* Zoom Controls */}
+      <ZoomControls
+        zoom={transform.scale}
+        minZoom={0.1}
+        maxZoom={5}
+        onZoomChange={handleZoomChange}
+        onFitToScreen={fitImageToCanvas}
+        onReset={handleResetZoom}
+        className="absolute bottom-4 right-4"
+      />
+
+      {/* Class Edit Popup */}
+      {showClassPopup && editingAnnotationId !== null && (
+        <ClassEditPopup
+          x={popupPosition.x}
+          y={popupPosition.y}
+          currentClassId={getEditingAnnotationClass()}
+          classes={classes}
+          onClassSelect={handleClassSelect}
+          onClose={() => {
+            setShowClassPopup(false);
+            setEditingAnnotationId(null);
+          }}
+        />
+      )}
     </div>
   );
 };
