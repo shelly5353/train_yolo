@@ -1,8 +1,8 @@
 # Deployment Guide - YOLO Annotation Tool
 
-## Vercel Deployment
+## Vercel Deployment (Frontend Only)
 
-This project is configured for deployment on Vercel with both frontend (React) and backend (Flask) components.
+This project is configured for deployment on Vercel with the React frontend. The backend (Flask) should be deployed separately to a platform that supports persistent storage and Python applications.
 
 ### Prerequisites
 
@@ -21,19 +21,22 @@ This project is configured for deployment on Vercel with both frontend (React) a
    - Vercel will auto-detect the configuration from `vercel.json`
 
 2. **Configure Project**
-   - Framework Preset: **Other**
-   - Root Directory: **/** (leave as root)
-   - Build Command: (auto-detected from `vercel.json`)
-   - Output Directory: `annotation_tool/frontend/build`
+   - Framework Preset: **Create React App**
+   - Root Directory: **annotation_tool/frontend**
+   - Build Command: `npm run build` (auto-detected)
+   - Output Directory: `build` (auto-detected)
+   - Install Command: `npm install` (auto-detected)
 
-3. **Environment Variables** (if needed)
-   - Add any required environment variables in Vercel dashboard
-   - Example: `FLASK_ENV=production`
+3. **Environment Variables**
+   - `REACT_APP_API_URL`: URL of your deployed backend (e.g., `https://your-backend.railway.app/api`)
+   - Add this in Vercel dashboard under Settings → Environment Variables
 
 4. **Deploy**
    - Click "Deploy"
-   - Vercel will build and deploy both frontend and backend
-   - You'll get a live URL like: `https://your-project.vercel.app`
+   - Vercel will build and deploy the frontend
+   - You'll get a live URL like: `https://train-yolo.vercel.app`
+
+**Note:** The backend must be deployed separately (see Backend Deployment section below).
 
 #### Option 2: Deploy via Vercel CLI
 
@@ -67,12 +70,49 @@ train_yolo/
 │       └── requirements.txt # Python dependencies
 ```
 
+## Backend Deployment
+
+The Flask backend requires persistent storage and cannot run effectively on Vercel's serverless platform. Deploy it to one of these platforms:
+
+### Option 1: Railway (Recommended)
+
+1. **Sign up:** https://railway.app
+2. **New Project** → Deploy from GitHub
+3. **Select:** `annotation_tool/backend` directory
+4. **Configure:**
+   - Root Directory: `annotation_tool/backend`
+   - Start Command: `python app.py`
+   - Railway auto-detects `requirements.txt`
+5. **Environment Variables:**
+   - `FLASK_ENV=production`
+   - `PORT=5002` (or Railway's default)
+6. **Deploy** → Get URL like: `https://your-app.railway.app`
+
+### Option 2: Render
+
+1. **Sign up:** https://render.com
+2. **New Web Service** → Connect GitHub
+3. **Configure:**
+   - Root Directory: `annotation_tool/backend`
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `python app.py`
+4. **Deploy** → Get URL
+
+### Option 3: DigitalOcean App Platform
+
+1. **Create App** from GitHub
+2. **Configure:**
+   - Type: Web Service
+   - Source: `annotation_tool/backend`
+   - Run Command: `python app.py`
+3. **Deploy**
+
 ### Configuration Files
 
 #### `vercel.json`
-- Defines build settings for both frontend and backend
-- Routes API calls to `/api/*` to Flask backend
-- Serves frontend static files
+- Simplified configuration for frontend-only deployment
+- Specifies build commands and output directory
+- Frontend build served as static files
 
 #### `.vercelignore`
 - Excludes large files (model weights, data directories)

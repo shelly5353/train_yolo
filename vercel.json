@@ -1,33 +1,6 @@
 {
-  "version": 2,
-  "name": "yolo-annotation-tool",
-  "builds": [
-    {
-      "src": "annotation_tool/backend/app.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb"
-      }
-    },
-    {
-      "src": "annotation_tool/frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "annotation_tool/backend/app.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "annotation_tool/frontend/$1"
-    }
-  ],
-  "env": {
-    "FLASK_ENV": "production"
-  }
+  "buildCommand": "cd annotation_tool/frontend && npm install && npm run build",
+  "outputDirectory": "annotation_tool/frontend/build",
+  "devCommand": "cd annotation_tool/frontend && npm start",
+  "installCommand": "cd annotation_tool/frontend && npm install"
 }
