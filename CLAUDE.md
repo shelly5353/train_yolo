@@ -66,6 +66,15 @@ train_yolo/
 ## DEVELOPMENT NOTES
 
 ### Recent Changes (Latest Update):
+- **Smooth MacBook Trackpad Zoom & Pan** (2025-10-25): Implemented professional zoom and pan controls matching MacBook native behavior
+  - Created ZoomControls component with manual zoom input (10-500%), +/- buttons, fit-to-screen, and reset to 100%
+  - Added native MacBook gesture support using gesturestart/gesturechange/gestureend events for smooth pinch-to-zoom
+  - Implemented smooth zoom with reduced sensitivity (0.002 factor) - no more jumpy zooming
+  - Zoom now centers on cursor/pinch point instead of canvas center for intuitive navigation
+  - Added pan bounds checking to prevent image from going completely off-screen (keeps 20% visible)
+  - Improved wheel handler: Cmd/Ctrl+scroll for zoom, regular scroll for pan
+  - Real-time zoom percentage display updates as user zooms with gestures
+  - Files: [ZoomControls.tsx](annotation_tool/frontend/src/components/ZoomControls.tsx), [ImageCanvas.tsx](annotation_tool/frontend/src/components/ImageCanvas.tsx:136-254)
 - **PDF Page Annotations Bug Fix** (2025-10-25): Fixed critical bug preventing PDF page annotations from loading
   - Issue: /api/annotations endpoint returned "Image not found" for PDF page requests (e.g., CO25S002554_page2.png)
   - Root Cause: Endpoint was checking for image existence in IMAGES_DIR, but PDF pages are cached in pdf_cache/ directory
