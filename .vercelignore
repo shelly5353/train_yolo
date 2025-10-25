@@ -1,0 +1,47 @@
+# Python
+annotation_tool/backend/venv
+annotation_tool/backend/__pycache__
+annotation_tool/backend/*.pyc
+annotation_tool/backend/.pytest_cache
+annotation_tool/backend/pdf_cache
+
+# Node
+annotation_tool/frontend/node_modules
+annotation_tool/frontend/build
+
+# Data directories
+data/
+labeld_data/
+archive/
+
+# Model files (too large)
+*.pt
+best.pt
+
+# IDE and system
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Documentation (not needed for deployment)
+DEBUG_ADD_CLASS.md
+LABEL_EDITING_IMPLEMENTATION.md
+QUICK_FIX_ADD_CLASS.md
+annotation_tool/ACTION_PLAN.md
+annotation_tool/BUG_FIX_REPORT.md
+annotation_tool/START_HERE.md
+annotation_tool/test_add_class.sh
+
+# Python tools
+label_tool.py
+enhanced_label_tool.py
+simple_edit_tool.py
+batch_detect.py

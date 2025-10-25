@@ -66,6 +66,37 @@ train_yolo/
 ## DEVELOPMENT NOTES
 
 ### Recent Changes (Latest Update):
+- **Auto-Save on All Annotation Changes** (2025-10-25): Fixed critical bug where label edits weren't saving to .txt files
+  - Issue: Changing labels, moving boxes, creating/deleting annotations only updated UI state, not files
+  - Root Cause: Update functions (updateAnnotation, updateAnnotationPosition, etc.) didn't trigger save API
+  - Solution: Added automatic saves to all annotation operations in App.tsx
+    - Label changes: Auto-save after 100ms delay
+    - Position changes: Debounced auto-save after 500ms (waits for user to finish dragging)
+    - New annotations: Auto-save after 100ms delay
+    - Deletions: Auto-save after 100ms delay
+  - Console logging added for debugging: "Auto-saved label change for annotation X"
+  - Result: All annotation work now persists immediately to .txt files in YOLO format
+  - Files: [App.tsx](annotation_tool/frontend/src/App.tsx:132-226)
+- **Dynamic Class Support** (2025-10-25): Fixed "unknown" label bug for newly added classes beyond the original 4
+  - Issue: New classes (215, 209, etc.) showed as "unknown" on bounding boxes
+  - Root Cause: Hardcoded CLASS_COLORS and CLASS_NAMES mappings only included IDs 0-3
+  - Solution: Replaced hardcoded objects with dynamic lookup functions using classes prop
+    - getClassName(): Looks up class name from classes array (finds any ID)
+    - getClassColor(): Uses default colors for 0-3, generates unique colors for custom classes using golden angle (hue = classId * 137 % 360)
+  - Updated components: ImageCanvas.tsx, Sidebar.tsx, ClassEditPopup.tsx
+  - Result: Unlimited custom classes now display correctly with unique colors
+  - Files: [ImageCanvas.tsx](annotation_tool/frontend/src/components/ImageCanvas.tsx:24-47), [Sidebar.tsx](annotation_tool/frontend/src/components/Sidebar.tsx:42-70)
+- **Vercel Deployment Configuration** (2025-10-25): Prepared project for Vercel deployment
+  - Created vercel.json with build configuration for React frontend and Flask backend
+  - Created .vercelignore to exclude large files (model weights, training data, venv)
+  - Created DEPLOYMENT.md with comprehensive deployment guide
+  - Updated README.md with deployment section
+  - Frontend: Builds to static files served from /annotation_tool/frontend/build
+  - Backend: Runs as serverless function at /api/* endpoints
+  - Note: Large model files excluded from deployment (too large for Vercel limits)
+  - Files: [vercel.json](vercel.json), [.vercelignore](.vercelignore), [DEPLOYMENT.md](DEPLOYMENT.md)
+
+### Previous Updates:
 - **Smooth MacBook Trackpad Zoom & Pan** (2025-10-25): Implemented professional zoom and pan controls matching MacBook native behavior
   - Created ZoomControls component with manual zoom input (10-500%), +/- buttons, fit-to-screen, and reset to 100%
   - Added native MacBook gesture support using gesturestart/gesturechange/gestureend events for smooth pinch-to-zoom

@@ -70,3 +70,21 @@ export enum MouseButton {
   MIDDLE = 1,
   RIGHT = 2
 }
+
+export enum ResizeHandle {
+  TOP_LEFT = 'top-left',
+  TOP = 'top',
+  TOP_RIGHT = 'top-right',
+  RIGHT = 'right',
+  BOTTOM_RIGHT = 'bottom-right',
+  BOTTOM = 'bottom',
+  BOTTOM_LEFT = 'bottom-left',
+  LEFT = 'left'
+}
+
+export enum InteractionMode {
+  IDLE = 'idle',
+  SELECTED = 'selected',
+  DRAGGING = 'dragging',
+  RESIZING = 'resizing'
+}

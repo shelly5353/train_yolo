@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Annotation, ViewTransform, Point, BoundingBox, Tool, MouseButton, ClassInfo } from '../types';
 import { ClassEditPopup } from './ClassEditPopup';
 import { ZoomControls } from './ZoomControls';
+import { AnnotationOverlay } from './AnnotationOverlay';
 
 interface ImageCanvasProps {
   imageUrl: string;
@@ -16,22 +17,34 @@ interface ImageCanvasProps {
   onAnnotationSelect: (id: number | null) => void;
   onAnnotationDelete: (id: number) => void;
   onAnnotationUpdate: (id: number, newClassId: number) => void;
+  onAnnotationPositionUpdate: (id: number, x1: number, y1: number, x2: number, y2: number) => void;
   className?: string;
 }
 
-const CLASS_COLORS = {
+// Default colors for first 4 classes
+const DEFAULT_CLASS_COLORS: { [key: number]: string } = {
   0: '#ef4444', // red - straight
   1: '#3b82f6', // blue - L-shape
   2: '#10b981', // green - U-shape
   3: '#f59e0b'  // orange - complex
 };
 
-const CLASS_NAMES = {
-  0: 'straight',
-  1: 'L-shape',
-  2: 'U-shape',
-  3: 'complex'
-};
+// Helper function to get class color (matches ClassEditPopup)
+function getClassColor(classId: number): string {
+  if (classId in DEFAULT_CLASS_COLORS) {
+    return DEFAULT_CLASS_COLORS[classId];
+  }
+
+  // Generate color for custom classes using golden angle for good distribution
+  const hue = (classId * 137) % 360;
+  return `hsl(${hue}, 70%, 55%)`;
+}
+
+// Helper function to get class name from classes array
+function getClassName(classId: number, classes: ClassInfo[]): string {
+  const classInfo = classes.find(c => c.id === classId);
+  return classInfo?.name || 'unknown';
+}
 
 export const ImageCanvas: React.FC<ImageCanvasProps> = ({
   imageUrl,
@@ -46,6 +59,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
   onAnnotationSelect,
   onAnnotationDelete,
   onAnnotationUpdate,
+  onAnnotationPositionUpdate,
   className = ''
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,6 +81,9 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
   const [showClassPopup, setShowClassPopup] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [editingAnnotationId, setEditingAnnotationId] = useState<number | null>(null);
+
+  // Track interaction state to prevent popup during drag/resize
+  const [isInteracting, setIsInteracting] = useState(false);
 
   // Load image
   useEffect(() => {
@@ -301,13 +318,20 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
       );
 
       if (clickedAnnotation) {
-        // Select the annotation
-        onAnnotationSelect(clickedAnnotation.id);
+        // If clicking on an already-selected annotation, the overlay will handle it
+        // Only handle clicks on non-selected annotations
+        if (clickedAnnotation.id !== selectedAnnotation) {
+          // Select the annotation
+          onAnnotationSelect(clickedAnnotation.id);
 
-        // Show class edit popup
-        setEditingAnnotationId(clickedAnnotation.id);
-        setPopupPosition({ x: event.clientX + 10, y: event.clientY + 10 });
-        setShowClassPopup(true);
+          // Show class edit popup only if not interacting
+          if (!isInteracting) {
+            setEditingAnnotationId(clickedAnnotation.id);
+            setPopupPosition({ x: event.clientX + 10, y: event.clientY + 10 });
+            setShowClassPopup(true);
+          }
+        }
+        // If clicking on already-selected annotation, overlay handles drag/resize
       } else {
         // Start drawing new bounding box
         setIsDragging(true);
@@ -322,7 +346,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
         setShowClassPopup(false); // Close popup when drawing new box
       }
     }
-  }, [currentTool, annotations, onAnnotationSelect, screenToImage]);
+  }, [currentTool, annotations, selectedAnnotation, isInteracting, onAnnotationSelect, screenToImage]);
 
   const handleMouseMove = useCallback((event: React.MouseEvent) => {
     if (isPanning && dragStart) {
@@ -397,7 +421,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
 
     // Draw annotations
     annotations.forEach(annotation => {
-      const color = CLASS_COLORS[annotation.class_id as keyof typeof CLASS_COLORS] || '#666';
+      const color = getClassColor(annotation.class_id);
       const isSelected = annotation.id === selectedAnnotation;
 
       ctx.strokeStyle = color;
@@ -413,8 +437,8 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
       );
 
       // Draw class label
-      const className = CLASS_NAMES[annotation.class_id as keyof typeof CLASS_NAMES] || 'unknown';
-      const label = `${annotation.class_id}: ${className}`;
+      const classNameText = getClassName(annotation.class_id, classes);
+      const label = `${annotation.class_id}: ${classNameText}`;
 
       ctx.fillStyle = color;
       const fontSize = 12 / transform.scale;
@@ -439,7 +463,7 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
 
     // Draw current bounding box being drawn
     if (currentBBox && isDragging) {
-      const color = CLASS_COLORS[currentClass as keyof typeof CLASS_COLORS] || '#666';
+      const color = getClassColor(currentClass);
       ctx.strokeStyle = color;
       ctx.lineWidth = 2 / transform.scale;
       ctx.setLineDash([5 / transform.scale, 5 / transform.scale]);
@@ -516,6 +540,11 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
     return annotation?.class_id ?? 0;
   };
 
+  // Get selected annotation object
+  const selectedAnnotationObj = selectedAnnotation !== null
+    ? annotations.find(ann => ann.id === selectedAnnotation)
+    : null;
+
   return (
     <div
       ref={containerRef}
@@ -531,6 +560,25 @@ export const ImageCanvas: React.FC<ImageCanvasProps> = ({
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
       />
+
+      {/* Annotation Overlay - interactive drag/resize layer */}
+      {selectedAnnotationObj && (
+        <div className="absolute inset-0 pointer-events-none">
+          <AnnotationOverlay
+            annotation={selectedAnnotationObj}
+            transform={transform}
+            color={getClassColor(selectedAnnotationObj.class_id)}
+            onPositionUpdate={onAnnotationPositionUpdate}
+            onInteractionStart={() => {
+              setIsInteracting(true);
+              setShowClassPopup(false); // Close popup when starting drag/resize
+            }}
+            onInteractionEnd={() => {
+              setIsInteracting(false);
+            }}
+          />
+        </div>
+      )}
 
       {/* Zoom Controls */}
       <ZoomControls

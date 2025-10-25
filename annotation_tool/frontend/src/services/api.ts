@@ -84,4 +84,112 @@ export class ApiService {
     }
     return response.json();
   }
+
+  // ======================================================================
+  // LABEL MANAGEMENT METHODS
+  // ======================================================================
+
+  static async fetchLabelManagement(): Promise<{
+    classes: Array<{
+      id: number;
+      name: string;
+      count: number;
+      is_complex: boolean;
+    }>;
+    total_classes: number;
+    total_annotations: number;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/labels/manage`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch label management info: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  static async addLabelClass(name: string): Promise<{
+    success: boolean;
+    class_id: number;
+    class_name: string;
+    total_classes: number;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/labels/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to add label class');
+    }
+
+    return response.json();
+  }
+
+  static async editLabelClass(classId: number, name: string): Promise<{
+    success: boolean;
+    class_id: number;
+    old_name: string;
+    new_name: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/labels/edit/${classId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to edit label class');
+    }
+
+    return response.json();
+  }
+
+  static async deleteLabelClass(classId: number): Promise<{
+    success: boolean;
+    deleted_class_id: number;
+    deleted_class_name: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/labels/delete/${classId}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || error.message || 'Failed to delete label class');
+    }
+
+    return response.json();
+  }
+
+  static async bulkReclassifyLabels(
+    fromClassId: number,
+    toClassId: number,
+    imageFilenames?: string[]
+  ): Promise<{
+    success: boolean;
+    updated_files: number;
+    updated_annotations: number;
+    from_class: { id: number; name: string };
+    to_class: { id: number; name: string };
+    errors?: string[];
+  }> {
+    const response = await fetch(`${API_BASE_URL}/labels/bulk-reclassify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_class_id: fromClassId,
+        to_class_id: toClassId,
+        image_filenames: imageFilenames || []
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to bulk reclassify labels');
+    }
+
+    return response.json();
+  }
 }

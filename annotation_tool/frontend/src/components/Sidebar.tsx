@@ -10,7 +10,8 @@ import {
   Hand,
   Zap,
   BarChart3,
-  Keyboard
+  Keyboard,
+  Settings
 } from 'lucide-react';
 import { ImageInfo, ClassInfo, Tool, AnnotationStats } from '../types';
 
@@ -28,6 +29,7 @@ interface SidebarProps {
   onPrevious: () => void;
   onNext: () => void;
   onClearAll: () => void;
+  onManageLabels: () => void;
   isSaving: boolean;
 }
 
@@ -37,12 +39,35 @@ const TOOL_INFO = {
   [Tool.PAN]: { icon: Hand, label: 'Pan', shortcut: 'H' }
 };
 
-const CLASS_COLORS = {
+// Default Tailwind color classes for first 4 classes
+const DEFAULT_CLASS_COLORS: { [key: number]: string } = {
   0: 'bg-red-500',
   1: 'bg-blue-500',
   2: 'bg-green-500',
   3: 'bg-orange-500'
 };
+
+// Helper function to get Tailwind color class for a class ID
+function getClassColorClass(classId: number): string {
+  if (classId in DEFAULT_CLASS_COLORS) {
+    return DEFAULT_CLASS_COLORS[classId];
+  }
+
+  // Generate color for custom classes using golden angle for good distribution
+  // Return inline style instead since we can't dynamically generate Tailwind classes
+  return '';
+}
+
+// Helper function to get inline color style for custom classes
+function getClassColorStyle(classId: number): React.CSSProperties | undefined {
+  if (classId in DEFAULT_CLASS_COLORS) {
+    return undefined; // Use Tailwind class instead
+  }
+
+  // Generate color for custom classes using golden angle
+  const hue = (classId * 137) % 360;
+  return { backgroundColor: `hsl(${hue}, 70%, 55%)` };
+}
 
 export const Sidebar: React.FC<SidebarProps> = ({
   images,
@@ -58,6 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onPrevious,
   onNext,
   onClearAll,
+  onManageLabels,
   isSaving
 }) => {
   const currentImage = images[currentImageIndex];
@@ -172,9 +198,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Classes */}
       <div className="sidebar-section">
-        <h3 className="font-semibold text-gray-700 mb-3">Classes</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-700">Classes</h3>
+          <button
+            onClick={onManageLabels}
+            className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+            title="Manage Labels"
+          >
+            <Settings className="w-4 h-4 text-gray-600" />
+          </button>
+        </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-[500px] overflow-y-auto">
           {classes.map((cls) => (
             <button
               key={cls.id}
@@ -185,7 +220,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   : 'hover:bg-gray-100 text-gray-700'
               }`}
             >
-              <div className={`w-4 h-4 rounded ${CLASS_COLORS[cls.id as keyof typeof CLASS_COLORS]} flex-shrink-0`}></div>
+              <div
+                className={`w-4 h-4 rounded flex-shrink-0 ${getClassColorClass(cls.id)}`}
+                style={getClassColorStyle(cls.id)}
+              ></div>
               <span className="flex-1 text-sm">{cls.name}</span>
               <span className="hotkey">{cls.id + 1}</span>
             </button>
@@ -265,7 +303,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="space-y-2">
             {stats.class_distribution.map((item) => (
               <div key={item.class_id} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded ${CLASS_COLORS[item.class_id as keyof typeof CLASS_COLORS]}`}></div>
+                <div
+                  className={`w-3 h-3 rounded ${getClassColorClass(item.class_id)}`}
+                  style={getClassColorStyle(item.class_id)}
+                ></div>
                 <span className="text-sm text-gray-600 flex-1">{item.class_name}</span>
                 <span className="text-sm font-medium text-gray-900">{item.count}</span>
               </div>

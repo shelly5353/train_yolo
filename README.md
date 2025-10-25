@@ -211,6 +211,18 @@ For reviewing pre-labeled data:
 - **Labels**: Generated automatically in `labeld_data/` as you work
 - **Validation**: Visual feedback ensures accurate labeling
 
+## Deployment
+
+This project can be deployed to Vercel or other hosting platforms. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+
+### Quick Deploy to Vercel
+
+1. Push this repository to GitHub
+2. Connect repository to Vercel
+3. Deploy with one click (configuration in `vercel.json`)
+
+For detailed instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Support
 
 For issues or questions about the labeling tool or YOLO training process, refer to the project documentation or create an issue in the repository.

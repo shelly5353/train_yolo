@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { ImageCanvas } from './components/ImageCanvas';
 import { Sidebar } from './components/Sidebar';
+import { LabelManager } from './components/LabelManager';
 import { DirectorySelector, DirectoryStats } from './components/DirectorySelector';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ApiService } from './services/api';
@@ -29,6 +30,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showLabelManager, setShowLabelManager] = useState(false);
 
   // Handle directory selection
   const handleDirectorySet = async (path: string, dirStats: DirectoryStats) => {
@@ -140,19 +142,149 @@ function App() {
       height: Math.round(bbox.y2 - bbox.y1)
     };
 
-    setAnnotations(prev => [...prev, newAnnotation]);
+    setAnnotations(prev => {
+      const updated = [...prev, newAnnotation];
+
+      // Auto-save after creating new annotation
+      setTimeout(() => {
+        if (images.length > 0) {
+          const currentImage = images[currentImageIndex];
+          ApiService.saveAnnotations(currentImage.filename, updated)
+            .then(() => {
+              console.log(`Auto-saved new annotation ${newAnnotation.id}`);
+            })
+            .catch(err => {
+              console.error('Failed to auto-save new annotation:', err);
+            });
+        }
+      }, 100);
+
+      return updated;
+    });
     setSelectedAnnotation(newAnnotation.id);
-  }, [classes]);
+  }, [classes, images, currentImageIndex]);
 
   const deleteAnnotation = useCallback((id: number) => {
-    setAnnotations(prev => prev.filter(ann => ann.id !== id));
+    setAnnotations(prev => {
+      const updated = prev.filter(ann => ann.id !== id);
+
+      // Auto-save after deleting annotation
+      setTimeout(() => {
+        if (images.length > 0) {
+          const currentImage = images[currentImageIndex];
+          ApiService.saveAnnotations(currentImage.filename, updated)
+            .then(() => {
+              console.log(`Auto-saved after deleting annotation ${id}`);
+            })
+            .catch(err => {
+              console.error('Failed to auto-save after deletion:', err);
+            });
+        }
+      }, 100);
+
+      return updated;
+    });
     setSelectedAnnotation(null);
-  }, []);
+  }, [images, currentImageIndex]);
+
+  const updateAnnotation = useCallback((id: number, newClassId: number) => {
+    setAnnotations(prev => {
+      const updated = prev.map(ann => {
+        if (ann.id === id) {
+          const newClassName = classes.find(c => c.id === newClassId)?.name || 'unknown';
+          return {
+            ...ann,
+            class_id: newClassId,
+            class_name: newClassName
+          };
+        }
+        return ann;
+      });
+
+      // Auto-save after label change
+      setTimeout(() => {
+        if (images.length > 0) {
+          const currentImage = images[currentImageIndex];
+          ApiService.saveAnnotations(currentImage.filename, updated)
+            .then(() => {
+              console.log(`Auto-saved label change for annotation ${id}`);
+            })
+            .catch(err => {
+              console.error('Failed to auto-save label change:', err);
+            });
+        }
+      }, 100);
+
+      return updated;
+    });
+  }, [classes, images, currentImageIndex]);
+
+  // Debounce timer for position updates
+  const positionSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const updateAnnotationPosition = useCallback((id: number, x1: number, y1: number, x2: number, y2: number) => {
+    setAnnotations(prev => {
+      const updated = prev.map(ann => {
+        if (ann.id === id) {
+          return {
+            ...ann,
+            x1: Math.round(x1),
+            y1: Math.round(y1),
+            x2: Math.round(x2),
+            y2: Math.round(y2),
+            width: Math.round(x2 - x1),
+            height: Math.round(y2 - y1)
+          };
+        }
+        return ann;
+      });
+
+      // Debounced auto-save after position change (wait for user to finish dragging)
+      if (positionSaveTimerRef.current) {
+        clearTimeout(positionSaveTimerRef.current);
+      }
+
+      positionSaveTimerRef.current = setTimeout(() => {
+        if (images.length > 0) {
+          const currentImage = images[currentImageIndex];
+          ApiService.saveAnnotations(currentImage.filename, updated)
+            .then(() => {
+              console.log(`Auto-saved position change for annotation ${id}`);
+            })
+            .catch(err => {
+              console.error('Failed to auto-save position change:', err);
+            });
+        }
+      }, 500); // Wait 500ms after last position change
+
+      return updated;
+    });
+  }, [images, currentImageIndex]);
 
   const clearAllAnnotations = useCallback(() => {
     setAnnotations([]);
     setSelectedAnnotation(null);
   }, []);
+
+  // Label management
+  const handleLabelsUpdated = useCallback(async () => {
+    // Reload classes and stats after label changes
+    try {
+      const [classesData, statsData] = await Promise.all([
+        ApiService.fetchClasses(),
+        ApiService.fetchStats()
+      ]);
+      setClasses(classesData);
+      setStats(statsData);
+
+      // Reload current image annotations (class names may have changed)
+      if (images.length > 0) {
+        await loadAnnotations(images[currentImageIndex].filename);
+      }
+    } catch (err) {
+      console.error('Failed to reload after label update:', err);
+    }
+  }, [images, currentImageIndex]);
 
   // Keyboard shortcuts
   const shortcuts = {
@@ -284,6 +416,7 @@ function App() {
         onPrevious={goToPrevious}
         onNext={goToNext}
         onClearAll={clearAllAnnotations}
+        onManageLabels={() => setShowLabelManager(true)}
         isSaving={isSaving}
       />
 
@@ -322,12 +455,22 @@ function App() {
             selectedAnnotation={selectedAnnotation}
             currentTool={currentTool}
             currentClass={currentClass}
+            classes={classes}
             onAnnotationCreate={createAnnotation}
             onAnnotationSelect={setSelectedAnnotation}
             onAnnotationDelete={deleteAnnotation}
+            onAnnotationUpdate={updateAnnotation}
+            onAnnotationPositionUpdate={updateAnnotationPosition}
           />
         </div>
       </div>
+
+      {/* Label Manager Modal */}
+      <LabelManager
+        isOpen={showLabelManager}
+        onClose={() => setShowLabelManager(false)}
+        onLabelsUpdated={handleLabelsUpdated}
+      />
     </div>
   );
 }
